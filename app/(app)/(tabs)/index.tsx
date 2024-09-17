@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View } from 'react-native';
+import { Alert, View } from 'react-native';
 import Animated, { FadeInUp, FadeOutDown, LayoutAnimationConfig } from 'react-native-reanimated';
 import { Info } from '~/lib/icons/Info';
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar';
@@ -15,16 +15,33 @@ import {
 import { Progress } from '~/components/ui/progress';
 import { Text } from '~/components/ui/text';
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip';
+import { useSession } from '~/context';
 
 const GITHUB_AVATAR_URI =
   'https://i.pinimg.com/originals/ef/a2/8d/efa28d18a04e7fa40ed49eeb0ab660db.jpg';
 
 export default function Screen() {
   const [progress, setProgress] = React.useState(78);
-
+  const { signOut } = useSession();
+  
   function updateProgressValue() {
     setProgress(Math.floor(Math.random() * 100));
   }
+  function handleSignOut(): void {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      {
+        text: 'Cancel',
+        style: 'cancel',    
+      },
+      {
+        text: 'Sign Out',
+        onPress: () => {
+          signOut();
+        },
+      },
+    ]);
+  }
+
   return (
     <View className='flex-1 justify-center items-center gap-5 p-6 bg-secondary/30'>
       <Card className='w-full max-w-sm p-6 rounded-2xl'>
@@ -87,6 +104,9 @@ export default function Screen() {
             onPress={updateProgressValue}
           >
             <Text className='text-sm text-teal-600'>Update</Text>
+          </Button>
+          <Button variant='destructive' className='text-sm text-red-600' onPress={() => handleSignOut()}>
+            <Text>Sign Out</Text>
           </Button>
         </CardFooter>
       </Card>

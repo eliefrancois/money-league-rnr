@@ -2,7 +2,7 @@ import '~/global.css';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Theme, ThemeProvider } from '@react-navigation/native';
-import { Redirect, SplashScreen, Stack, Href } from 'expo-router';
+import { Redirect, SplashScreen, Stack, Href, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
 import { Platform } from 'react-native';
@@ -34,6 +34,7 @@ export default function RootLayout() {
   const { colorScheme, setColorScheme, isDarkColorScheme } = useColorScheme();
   const [isColorSchemeLoaded, setIsColorSchemeLoaded] = React.useState(false);
   const { session, isLoading } = useSession();
+  const router = useRouter();
   
 
   React.useEffect(() => {
@@ -66,14 +67,14 @@ export default function RootLayout() {
     return null;
   }
 
-    // You can keep the splash screen open, or render a loading screen like we do here.
-    if (isLoading) {
-      return <Text>Loading...</Text>;
-    }
+  if (isLoading ) {
+    return <Text>Loading...</Text>;
+  }
+  
   //TODO: if there is no session, redirect to sign-in
   console.log('session', session);
   if (!session) {
-    return <Redirect href={"/sign-in" as Href} />;
+    return <Redirect href="/sign-in" />;
   }
 
   return (
