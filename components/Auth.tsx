@@ -75,7 +75,7 @@ export default function Auth() {
             disabled={loading}
             className="w-full"
           >
-            Sign In
+            <Text>Sign In</Text>
           </Button>
           <Button
             onPress={signUpWithEmail}
@@ -83,7 +83,7 @@ export default function Auth() {
             variant="outline"
             className="w-full"
           >
-            Sign Up
+            <Text>Sign Up</Text>
           </Button>
         </CardFooter>
       </Card>
