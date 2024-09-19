@@ -67,43 +67,6 @@ export const getSession = async () => {
   return data;
 }
 /**
- * Signs out the current user.
- * 
- * Use cases:
- * - Logging out a user from the app
- * - Clearing user session data
- * 
- * Example usage:
- * const error = await signOut();
- * if (error) {
- *   console.error('Error signing out:', error);
- * } else {
- *   console.log('User signed out successfully');
- * }
- */
-export const signOut = async () => {
-  const { error } = await supabase.auth.signOut();
-  return error;
-}
-/**
- * Signs in a user with email and password.
- * 
- * Use cases:
- * - User login functionality
- * 
- * Example usage:
- * const { data, error } = await signIn('user@example.com', 'password123');
- * if (error) {
- *   console.error('Sign in error:', error);
- * } else {
- *   console.log('User signed in:', data.user);
- * }
- */
-export const signIn = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  return { data, error };
-}
-/**
  * Signs up a new user with email and password.
  * 
  * Use cases:
