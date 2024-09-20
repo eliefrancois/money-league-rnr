@@ -1,63 +1,61 @@
 import React from 'react';
 import { useStorageState } from './useStorageState';
 import { supabase } from '~/utils/supabase';
+import { router } from 'expo-router';
 
-const AuthContext = React.createContext<{
-  signIn: (email:string,password:string) => void | any;
-  signOut: () => void;
-  session?: string | null;
+type AuthContextType = {
+  signIn: (email: string, password: string) => Promise<{ error?: any }>;
+  signOut: () => Promise<void>;
+  session: any | null;
+  user: any | null;
   isLoading: boolean;
-}>({
-  signIn: () => null,
-  signOut: () => null,
-  session: null,
-  isLoading: false,
-});
+};
 
-// This hook can be used to access the user info.
+const AuthContext = React.createContext<AuthContextType | undefined>(undefined);
+
 export function useSession() {
   const value = React.useContext(AuthContext);
-  if (process.env.NODE_ENV !== 'production') {
-    if (!value) {
-      throw new Error('useSession must be wrapped in a <SessionProvider />');
-    }
+  if (!value) {
+    throw new Error('useSession must be wrapped in a <SessionProvider />');
   }
-
   return value;
 }
 
 export function SessionProvider(props: React.PropsWithChildren) {
-  const [[isLoading, session], setSession] = useStorageState('session');
-  const [[isUserLoading, user], setUser] = useStorageState('user');
+  const [[isSessionLoading, sessionString], setSession] = useStorageState('session');
+  const [[isUserLoading, userString], setUser] = useStorageState('user');
 
+  const [session, setSessionObj] = React.useState<any | null>(null);
+  const [user, setUserObj] = React.useState<any | null>(null);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        signIn: async (email: string, password: string) => {
-          const { error, data } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          })
-          if (error) {
-            console.log(error)
-            return {
-              error,
-            }
-          }
-          // Perform sign-in logic here
-          setSession(JSON.stringify(data?.session));
-          setUser(JSON.stringify(data?.user));
-          return true;
-        },
-        signOut: () => {
-          supabase.auth.signOut();
-          setSession(null);
-        },
-        session,
-        isLoading,
-      }}>
-      {props.children}
-    </AuthContext.Provider>
-  );
+  React.useEffect(() => {
+    if (sessionString) setSessionObj(JSON.parse(sessionString));
+    if (userString) setUserObj(JSON.parse(userString));
+  }, [sessionString, userString]);
+
+  const isLoading = isSessionLoading || isUserLoading;
+
+  const value: AuthContextType = {
+    signIn: async (email: string, password: string) => {
+      const { error, data } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) return { error };
+      setSession(JSON.stringify(data?.session));
+      setUser(JSON.stringify(data?.user));
+      return {};
+    },
+    signOut: async () => {
+      await supabase.auth.signOut();
+      setSession(null);
+      setUser(null);
+      // router.replace("/");
+    },
+    session,
+    user,
+    isLoading,
+  };
+
+  return <AuthContext.Provider value={value}>{props.children}</AuthContext.Provider>;
 }

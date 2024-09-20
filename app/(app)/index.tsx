@@ -27,7 +27,7 @@ export default function Screen() {
   function updateProgressValue() {
     setProgress(Math.floor(Math.random() * 100));
   }
-  function handleSignOut(): void {
+  async function handleSignOut(): Promise<void> {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       {
         text: 'Cancel',
@@ -35,8 +35,13 @@ export default function Screen() {
       },
       {
         text: 'Sign Out',
-        onPress: () => {
-          signOut();
+        onPress: async () => {
+          try {   
+            await signOut();
+          } catch (error) {
+            console.error("Error signing out", error);
+            Alert.alert('Error', 'Failed to sign out');
+          }
         },
       },
     ]);

@@ -5,18 +5,20 @@ import { Button } from './ui/button'
 import { Text } from './ui/text'
 import { Card, CardHeader, CardContent, CardFooter } from './ui/card'
 import { supabase } from '~/utils/supabase'
+import { useSession } from '~/context'
 
 export default function Auth() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const {signIn } = useSession();
 
   async function signInWithEmail() {
     setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
-    })
+    const { error } = await signIn(
+      email,
+      password,
+    )
     
     if (error) {
       Alert.alert(error.message)
@@ -75,7 +77,7 @@ export default function Auth() {
             disabled={loading}
             className="w-full"
           >
-            Sign In
+            <Text>Sign In</Text>
           </Button>
           <Button
             onPress={signUpWithEmail}
@@ -83,7 +85,7 @@ export default function Auth() {
             variant="outline"
             className="w-full"
           >
-            Sign Up
+            <Text>Sign Up</Text>
           </Button>
         </CardFooter>
       </Card>
