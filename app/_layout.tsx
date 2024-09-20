@@ -43,33 +43,35 @@ const InitialLayout = () => {
     };
   }, [router]);
 
-  // useEffect(() => {
-  //   if (!initialized) return;
+  /*
+  useEffect(() => {
+    if (!initialized) return;
 
     // Check if the path/url is in the (auth) group
-  //   const inAuthGroup = segments[0] === "(app)";
+    const inAuthGroup = segments[0] === "(app)";
 
-  //   const loggedIn = session && !inAuthGroup;
-  //   const loggedOut = !session;
+    const loggedIn = session && !inAuthGroup;
+    const loggedOut = !session;
 
-  //   //logs to debug the flow of logging in 
-  //   // BUG:When a user is logged in and goes to the login page, the user is not redirected to the home page
-  //   console.log("loggedIn:", loggedIn);
-  //   console.log("loggedOut:", loggedOut);
-  //   console.log("app is in path", segments[0], "inAuthGroup is: ", segments[0] === "(app)");
-  //   console.log("session", session);
+    // logs to debug the flow of logging in 
+    // BUG: When a user is logged in and goes to the login page, the user is not redirected to the home page
+    console.log("loggedIn:", loggedIn);
+    console.log("loggedOut:", loggedOut);
+    console.log("app is in path", segments[0], "inAuthGroup is: ", segments[0] === "(app)");
+    console.log("session", session);
 
-  //   if (loggedIn) {
-  //     // Redirect authenticated users to the list page
-  //     console.log("redirecting to home page");
-  //     router.replace("/(app)/");
-  //   }
-  //   // else if (loggedOut) {
-  //   //   // Redirect unauthenticated users to the login page
-  //   //   console.log("redirecting to login page");
-  //   //   router.replace("/");
-  //   // }
-  // }, [session, initialized]);
+    if (loggedIn) {
+      // Redirect authenticated users to the list page
+      console.log("redirecting to home page");
+      router.replace("/(app)/");
+    }
+    // else if (loggedOut) {
+    //   // Redirect unauthenticated users to the login page
+    //   console.log("redirecting to login page");
+    //   router.replace("/");
+    // }
+  }, [session, initialized]);
+  */
 
   return (
     <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
