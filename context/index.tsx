@@ -1,6 +1,7 @@
 import React from 'react';
 import { useStorageState } from './useStorageState';
 import { supabase } from '~/utils/supabase';
+import { router } from 'expo-router';
 
 type AuthContextType = {
   signIn: (email: string, password: string) => Promise<{ error?: any }>;
@@ -49,6 +50,7 @@ export function SessionProvider(props: React.PropsWithChildren) {
       await supabase.auth.signOut();
       setSession(null);
       setUser(null);
+      // router.replace("/");
     },
     session,
     user,

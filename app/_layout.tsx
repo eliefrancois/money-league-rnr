@@ -10,11 +10,8 @@ import { useColorScheme } from "~/lib/useColorScheme";
 
 // Makes sure the user is authenticated before accessing protected pages
 const InitialLayout = () => {
-  const [session, setSession] = useState<Session | null>(null);
-  const [initialized, setInitialized] = useState<boolean>(false);
   const { isDarkColorScheme } = useColorScheme();
 
-  const segments = useSegments();
   const router = useRouter();
 
   const LIGHT_THEME: Theme = {
@@ -31,38 +28,48 @@ const InitialLayout = () => {
     const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("supabase.auth.onAuthStateChange", event, session);
 
-      setSession(session);
-      setInitialized(true);
+      if ((event === "SIGNED_IN" && session) || (event === "INITIAL_SESSION" && session)) {
+        console.log("user signed in");
+        router.replace("/(app)/");
+      } else if ((event === "SIGNED_OUT" && !session) || (event === "INITIAL_SESSION" && !session)) {
+        console.log("user signed out");
+        router.replace("/(signIn)/");
+      }
+
     });
+
     return () => {
       data.subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
-  useEffect(() => {
-    if (!initialized) return;
+  // useEffect(() => {
+  //   if (!initialized) return;
 
     // Check if the path/url is in the (auth) group
-    const inAuthGroup = segments[0] === "(app)";
+  //   const inAuthGroup = segments[0] === "(app)";
 
-    const loggedIn = session && !inAuthGroup;
-    const loggedOut = !session;
+  //   const loggedIn = session && !inAuthGroup;
+  //   const loggedOut = !session;
 
-    //logs to debug the flow of logging in 
-    // BUG:When a user is logged in and goes to the login page, the user is not redirected to the home page
-    console.log("loggedIn:", loggedIn);
-    console.log("loggedOut:", loggedOut);
-    console.log("app is in path", segments[0], "inAuthGroup is: ", segments[0] === "(app)");
-    console.log("session", session);
+  //   //logs to debug the flow of logging in 
+  //   // BUG:When a user is logged in and goes to the login page, the user is not redirected to the home page
+  //   console.log("loggedIn:", loggedIn);
+  //   console.log("loggedOut:", loggedOut);
+  //   console.log("app is in path", segments[0], "inAuthGroup is: ", segments[0] === "(app)");
+  //   console.log("session", session);
 
-    if (loggedIn) {
-      // Redirect authenticated users to the list page
-      router.replace("/(app)/");
-    } else if (loggedOut) {
-      // Redirect unauthenticated users to the login page
-      router.replace("/");
-    }
-  }, [session, initialized]);
+  //   if (loggedIn) {
+  //     // Redirect authenticated users to the list page
+  //     console.log("redirecting to home page");
+  //     router.replace("/(app)/");
+  //   }
+  //   // else if (loggedOut) {
+  //   //   // Redirect unauthenticated users to the login page
+  //   //   console.log("redirecting to login page");
+  //   //   router.replace("/");
+  //   // }
+  // }, [session, initialized]);
 
   return (
     <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
