@@ -27,25 +27,7 @@ export default function Screen() {
   function updateProgressValue() {
     setProgress(Math.floor(Math.random() * 100));
   }
-  async function handleSignOut(): Promise<void> {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      {
-        text: 'Cancel',
-        style: 'cancel',    
-      },
-      {
-        text: 'Sign Out',
-        onPress: async () => {
-          try {   
-            await signOut();
-          } catch (error) {
-            console.error("Error signing out", error);
-            Alert.alert('Error', 'Failed to sign out');
-          }
-        },
-      },
-    ]);
-  }
+
 
   return (
     <View className='flex-1 justify-center items-center gap-5 p-6 bg-secondary/30'>
@@ -109,9 +91,6 @@ export default function Screen() {
             onPress={updateProgressValue}
           >
             <Text className='text-sm text-teal-600'>Update</Text>
-          </Button>
-          <Button variant='destructive' className='text-sm text-red-600' onPress={() => handleSignOut()}>
-            <Text>Sign Out</Text>
           </Button>
         </CardFooter>
       </Card>
