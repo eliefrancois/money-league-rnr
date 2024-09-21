@@ -20,6 +20,7 @@
     "@rn-primitives/portal": "~1.0.3",
     "@rn-primitives/progress": "~1.0.3",
     "@rn-primitives/slot": "~1.0.3",
+    "@rn-primitives/tabs": "^1.0.4",
     "@rn-primitives/tooltip": "~1.0.3",
     "@rn-primitives/types": "~1.0.3",
     "@supabase/supabase-js": "^2.45.4",

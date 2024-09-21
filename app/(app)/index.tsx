@@ -22,7 +22,6 @@ const GITHUB_AVATAR_URI =
 
 export default function Screen() {
   const [progress, setProgress] = React.useState(78);
-  const { signOut } = useSession();
   
   function updateProgressValue() {
     setProgress(Math.floor(Math.random() * 100));
