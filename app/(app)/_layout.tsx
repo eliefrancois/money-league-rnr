@@ -84,6 +84,16 @@ export default function TabLayout() {
           headerRight: () => null,
         }}
       />
+      <Tabs.Screen
+        name="ESPNLogin"
+        options={{
+          href: null,
+          title: "ESPN Login",
+          headerShown: true,
+          headerLeft: () => null,
+          headerRight: () => null,
+        }}
+      />
       {/* <Tabs.Screen
         name="settings"
         options={{
