@@ -16,6 +16,7 @@ export default function Auth() {
   const {signIn } = useSession();
   const [value, setValue] = useState('signIn')
   const [showPassword, setShowPassword] = useState(false)
+  
   async function signInWithEmail() {
     setLoading(true)
     const { error } = await signIn(

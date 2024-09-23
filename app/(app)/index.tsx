@@ -16,8 +16,11 @@ import { Text } from '~/components/ui/text';
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip';
 import { useSession } from '~/context';
 import { useEffect, useState } from 'react';
-import { getProfile, supabase } from '~/utils/supabase';
+import { getProfile } from '~/utils/supabase';
 import { Image } from 'react-native';
+import { router } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
+
 const GITHUB_AVATAR_URI =
   'https://i.pinimg.com/originals/ef/a2/8d/efa28d18a04e7fa40ed49eeb0ab660db.jpg';
 
@@ -25,6 +28,7 @@ export default function Screen() {
   const [progress, setProgress] = useState(78);
   const { user } = useSession();
   const [profile, setProfile] = useState<any>(null);
+  
   function updateProgressValue() {
     setProgress(Math.floor(Math.random() * 100));
   }
@@ -40,10 +44,29 @@ export default function Screen() {
           console.log('User profile:', data);
           setProfile(data)
         }
+
       }
       fetchProfile()
     }
   }, [user])
+
+  useEffect(() => {
+    const fetchCookies = async () => {
+      const cookies = await SecureStore.getItemAsync('espnCookies')
+      console.log("User Cookies(called from index)", cookies)
+    }
+    fetchCookies()
+  }, [])
+
+  const handleSync = (platform: string) => {
+
+    if (platform === 'espn') {
+      router.push('/ESPNLogin')
+    }
+    else {
+      Alert.alert('Coming Soon', 'This feature is coming soon')
+    }
+  }
 
 
 
@@ -54,10 +77,17 @@ export default function Screen() {
       <Text className="text-2xl font-bold mb-4">Sync Your League</Text>
       {
         profile?.is_espn_synced ? (
-          <Text>Synced</Text>
-        ) : (
           <Button onPress={() => {
             Alert.alert('Coming Soon', 'This feature is coming soon')
+          }}>
+            <View className='flex-row items-center'>
+            <Image source={require('~/assets/league_sync/espn_icon.jpeg')} style={{ width: 34, height: 34, marginRight: 8 }} />
+            <Text>View ESPN Leagues</Text>
+            </View>
+          </Button>
+        ) : (
+          <Button onPress={() => {
+            handleSync('espn')
           }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Image source={require('~/assets/league_sync/espn_icon.jpeg')} resizeMode='contain' style={{ width: 34, height: 34, marginRight: 8 }} />
