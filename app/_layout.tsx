@@ -1,6 +1,6 @@
 import { supabase } from "~/utils/supabase";
 import { Session } from "@supabase/supabase-js";
-import { Redirect, Slot, useRouter, useSegments } from "expo-router";
+import { Href, Redirect, Slot, useRouter, useSegments } from "expo-router";
 import { useEffect, useState } from "react";
 import { SessionProvider } from "~/context";
 import { Theme, ThemeProvider } from "@react-navigation/native";
@@ -33,7 +33,7 @@ const InitialLayout = () => {
         router.replace("/(app)/");
       } else if ((event === "SIGNED_OUT" && !session) || (event === "INITIAL_SESSION" && !session)) {
         console.log("user signed out");
-        router.replace("/(signIn)/");
+        router.replace("/(signIn)/" as unknown as Href<"/(signIn)/">);
       }
 
     });
