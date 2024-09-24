@@ -90,7 +90,7 @@ export default function ESPNLeagues() {
       }
       // console.log("parsedCookies.SWID:", parsedCookies.SWID);
       // console.log("parsedCookies.espn_s2:", parsedCookies.espn_s2);
-      const response = await fetch("http://10.0.0.161:5001/api/user-leagues", {
+      const response = await fetch("https://money-league-api.onrender.com/api/user-leagues", {
         method: "GET",
         headers: {
           "X-SWID": parsedCookies.SWID,

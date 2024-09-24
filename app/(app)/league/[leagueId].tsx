@@ -86,7 +86,7 @@ export default function LeaguePage() {
       }
       const parsedCookies = JSON.parse(storedCookies); // TODO: fix this later shouldnt assert presence of cookies i should check if its null or undefined
       const response = await fetch(
-        `http://10.0.0.161:5001/api/user-leagues/details/${leagueId}/${year}`,
+        `https://money-league-api.onrender.com/api/user-leagues/details/${leagueId}/${year}`,
         {
           headers: {
             "X-SWID": parsedCookies.SWID,
