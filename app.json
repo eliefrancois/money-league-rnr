@@ -40,6 +40,18 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "7910e433-fe20-4995-8a11-4b67be96dd5d"
+      }
+    },
+    "owner": "eliefrancois",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/7910e433-fe20-4995-8a11-4b67be96dd5d"
     }
   }
 }
