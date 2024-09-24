@@ -18,7 +18,7 @@ export default function ESPNLeagues() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [leagueData, setLeagueData] = useState<UserLeaguesData | null>(null);
-  const router = useRouter();
+  const [storedCookies, setStoredCookies] = useState<string | null>(null);
 
   const parseUserLeagueData = (
     data: RawUserLeaguesData,
@@ -74,9 +74,9 @@ export default function ESPNLeagues() {
   };
 
   const fetchAndParseLeagueData = useCallback(async (storedCookies: string) => {
-    setIsLoading(true);
-    setError(null);
     try {
+      setIsLoading(true);
+      setError(null);
       console.log("in fetchAndParseLeagueData() calling Flask API");
       // console.log("storedCookies:", storedCookies);
       // console.log("Using hardcoded cookies:", storedCookies);
@@ -90,13 +90,16 @@ export default function ESPNLeagues() {
       }
       // console.log("parsedCookies.SWID:", parsedCookies.SWID);
       // console.log("parsedCookies.espn_s2:", parsedCookies.espn_s2);
-      const response = await fetch("https://money-league-api.onrender.com/api/user-leagues", {
-        method: "GET",
-        headers: {
-          "X-SWID": parsedCookies.SWID,
-          "X-ESPN-S2": parsedCookies.espn_s2,
-        },
-      });
+      const response = await fetch(
+        "https://money-league-api.onrender.com/api/user-leagues",
+        {
+          method: "GET",
+          headers: {
+            "X-SWID": parsedCookies.SWID,
+            "X-ESPN-S2": parsedCookies.espn_s2,
+          },
+        }
+      );
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -126,7 +129,6 @@ export default function ESPNLeagues() {
   useFocusEffect(
     useCallback(() => {
       const fetchLeagues = async () => {
-        setIsLoading(true);
         try {
           const storedCookies = await SecureStore.getItemAsync("espnCookies");
           if (storedCookies) {
@@ -135,37 +137,49 @@ export default function ESPNLeagues() {
             // console.log("parsedCookies:", parsedCookies);
             // console.log("parsedCookies.SWID:", parsedCookies.SWID);
             // console.log("parsedCookies.espn_s2:", parsedCookies.espn_s2);
-            fetchAndParseLeagueData(storedCookies);
+            await fetchAndParseLeagueData(storedCookies);
           }
         } catch (error) {
           console.error("Error fetching data:", error);
           setError("Failed to fetch league data. Please try again.");
-        } finally {
-          setIsLoading(false);
         }
       };
       fetchLeagues();
-    }, [])
+    }, [storedCookies])
   );
 
   return (
-    <View className="flex-1 justify-center items-center gap-5 p-6 bg-secondary/30">
-      <Text className="text-2xl font-bold">Select a League to Connect</Text>
-      {isLoading && <ActivityIndicator size="large" color="#0000ff" />}
-      {error && <Text>{error}</Text>}
-      {leagueData && (
-        <ScrollView className="w-full">
-          <View className="w-full">
-            {Object.entries(leagueData.leagues).map(([leagueId, league]) => (
-              <LeagueCard
-                key={`${leagueId}-${league.teamId}`}
-                league={league}
-                leagueId={leagueId}
-              />
-            ))}
-          </View>
-        </ScrollView>
+    <>
+      {isLoading && (
+        <View className="flex-1 justify-center items-center gap-5 p-6 bg-secondary/30">
+          <ActivityIndicator size="large" />
+        </View>
       )}
-    </View>
+      {error && (
+        <View className="flex-1 justify-center items-center gap-5 p-6 bg-secondary/30">
+          <Text>{error}</Text>
+        </View>
+      )}
+      {!isLoading && !error && (
+        <View className="flex-1 justify-center items-center gap-5 p-6 bg-secondary/30">
+          <Text className="text-2xl font-bold">Select a League to Connect</Text>
+          {leagueData && (
+            <ScrollView className="w-full">
+              <View className="w-full">
+                {Object.entries(leagueData.leagues).map(
+                  ([leagueId, league]) => (
+                    <LeagueCard
+                      key={`${leagueId}-${league.teamId}`}
+                      league={league}
+                      leagueId={leagueId}
+                    />
+                  )
+                )}
+              </View>
+            </ScrollView>
+          )}
+        </View>
+      )}
+    </>
   );
 }

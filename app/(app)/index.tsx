@@ -1,8 +1,12 @@
-import { Alert, View } from 'react-native';
-import Animated, { FadeInUp, FadeOutDown, LayoutAnimationConfig } from 'react-native-reanimated';
-import { Info } from '~/lib/icons/Info';
-import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar';
-import { Button } from '~/components/ui/button';
+import { Alert, View } from "react-native";
+import Animated, {
+  FadeInUp,
+  FadeOutDown,
+  LayoutAnimationConfig,
+} from "react-native-reanimated";
+import { Info } from "~/lib/icons/Info";
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
+import { Button } from "~/components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,113 +14,136 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '~/components/ui/card';
-import { Progress } from '~/components/ui/progress';
-import { Text } from '~/components/ui/text';
-import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip';
-import { useSession } from '~/context';
-import { useCallback, useEffect, useState } from 'react';
-import { getProfile } from '~/utils/supabase';
-import { Image } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
-
+} from "~/components/ui/card";
+import { Progress } from "~/components/ui/progress";
+import { Text } from "~/components/ui/text";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
+import { useSession } from "~/context";
+import { useCallback, useEffect, useState } from "react";
+import { getProfile } from "~/utils/supabase";
+import { Image } from "react-native";
+import { router, useFocusEffect } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import { ActivityIndicator } from "react-native";
 const GITHUB_AVATAR_URI =
-  'https://i.pinimg.com/originals/ef/a2/8d/efa28d18a04e7fa40ed49eeb0ab660db.jpg';
+  "https://i.pinimg.com/originals/ef/a2/8d/efa28d18a04e7fa40ed49eeb0ab660db.jpg";
 
 export default function Screen() {
   const [progress, setProgress] = useState(78);
   const { user } = useSession();
   const [profile, setProfile] = useState<any>(null);
-  
+  const [isLoading, setIsLoading] = useState(false);
+
   function updateProgressValue() {
     setProgress(Math.floor(Math.random() * 100));
   }
 
-
   useEffect(() => {
-    if (user) {
-      const fetchProfile = async () => {
-        const { data, error } = await getProfile(user.id)
-        if (error) {
-          console.error('Error fetching profile:', error);
-        } else {
-          console.log('User profile:', data);
-          setProfile(data)
-        }
+    const fetchProfile = async () => {
+      const { data, error } = await getProfile(user.id);
+      if (error) {
+        console.error("Error fetching profile:", error);
+      } else {
+        console.log("User profile:", data);
+        setProfile(data);
+      }
+    };
+    try {
+      if (user) {
+        setIsLoading(true);
+        fetchProfile();
+      }
+      else {
+        console.log("No user found");
 
       }
-      fetchProfile()
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+    } finally {
+      console.log("Profile fetched");
+      
     }
-  }, [user])
-
+  }, [user]);
 
   const handleSync = (platform: string) => {
-
-    if (platform === 'espn') {
-      router.push('/ESPNLogin')
+    if (platform === "espn") {
+      router.push("/ESPNLogin");
+    } else {
+      Alert.alert("Coming Soon", "This feature is coming soon");
     }
-    else {
-      Alert.alert('Coming Soon', 'This feature is coming soon')
-    }
-  }
-
-
-
+  };
 
   return (
-
-    <View className='flex-1 justify-center items-center gap-5 p-6 bg-secondary/30'>
+    <View className="flex-1 justify-center items-center gap-5 p-6 bg-secondary/30">
       <Text className="text-2xl font-bold mb-4">Sync Your League</Text>
-      {
-        profile?.is_espn_synced ? (
-          <Button onPress={() => {
-            router.push('/ESPNLeagues')
-          }}>
-            <View className='flex-row items-center'>
-            <Image source={require('~/assets/league_sync/espn_icon.jpeg')} style={{ width: 34, height: 34, marginRight: 8 }} />
+      {profile?.is_espn_synced ? (
+        <Button
+          onPress={() => {
+            router.push("/ESPNLeagues");
+          }}
+        >
+          <View className="flex-row items-center">
+            <Image
+              source={require("~/assets/league_sync/espn_icon.jpeg")}
+              style={{ width: 34, height: 34, marginRight: 8 }}
+            />
             <Text>View ESPN Leagues</Text>
-            </View>
-          </Button>
-        ) : (
-          <Button onPress={() => {
-            handleSync('espn')
-          }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Image source={require('~/assets/league_sync/espn_icon.jpeg')} resizeMode='contain' style={{ width: 34, height: 34, marginRight: 8 }} />
-              <Text>Sync ESPN</Text>
-            </View>
-          </Button>
-        )
-      }
-      {
-        profile?.is_sleeper_synced ? (
-          <Text>Synced</Text>
-        ) : (
-          <Button onPress={() => {
-            Alert.alert('Coming Soon', 'This feature is coming soon')
-          }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Image source={require('~/assets/league_sync/sleeper_icon.jpg')} style={{ width: 34, height: 34, marginRight: 8 }} />
-              <Text>Sync Sleeper</Text>
-            </View>
-          </Button>
-        )
-      }
-      {
-        profile?.is_yahoo_synced ? (
-          <Text>Synced</Text>
-        ) : (
-          <Button onPress={() => {
-            Alert.alert('Coming Soon', 'This feature is coming soon')
-          }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Image source={require('~/assets/league_sync/yahoo_icon.png')} style={{ width: 34, height: 34, marginRight: 8 }} />
-              <Text>Sync Yahoo</Text>
-            </View>
-          </Button>
-        ) 
-      }
+          </View>
+        </Button>
+      ) : (
+        <Button
+          onPress={() => {
+            handleSync("espn");
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Image
+              source={require("~/assets/league_sync/espn_icon.jpeg")}
+              resizeMode="contain"
+              style={{ width: 34, height: 34, marginRight: 8 }}
+            />
+            <Text>Sync ESPN</Text>
+          </View>
+        </Button>
+      )}
+      {profile?.is_sleeper_synced ? (
+        <Text>Synced</Text>
+      ) : (
+        <Button
+          onPress={() => {
+            Alert.alert("Coming Soon", "This feature is coming soon");
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Image
+              source={require("~/assets/league_sync/sleeper_icon.jpg")}
+              style={{ width: 34, height: 34, marginRight: 8 }}
+            />
+            <Text>Sync Sleeper</Text>
+          </View>
+        </Button>
+      )}
+      {profile?.is_yahoo_synced ? (
+        <Text>Synced</Text>
+      ) : (
+        <Button
+          onPress={() => {
+            Alert.alert("Coming Soon", "This feature is coming soon");
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Image
+              source={require("~/assets/league_sync/yahoo_icon.png")}
+              style={{ width: 34, height: 34, marginRight: 8 }}
+            />
+            <Text>Sync Yahoo</Text>
+          </View>
+        </Button>
+      )}
     </View>
     // <View className='flex-1 justify-center items-center gap-5 p-6 bg-secondary/30'>
     //   <Card className='w-full max-w-sm p-6 rounded-2xl'>
