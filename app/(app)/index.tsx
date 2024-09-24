@@ -15,10 +15,10 @@ import { Progress } from '~/components/ui/progress';
 import { Text } from '~/components/ui/text';
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip';
 import { useSession } from '~/context';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { getProfile } from '~/utils/supabase';
 import { Image } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 
 const GITHUB_AVATAR_URI =
@@ -50,13 +50,6 @@ export default function Screen() {
     }
   }, [user])
 
-  useEffect(() => {
-    const fetchCookies = async () => {
-      const cookies = await SecureStore.getItemAsync('espnCookies')
-      console.log("User Cookies(called from index)", cookies)
-    }
-    fetchCookies()
-  }, [])
 
   const handleSync = (platform: string) => {
 
@@ -78,7 +71,7 @@ export default function Screen() {
       {
         profile?.is_espn_synced ? (
           <Button onPress={() => {
-            Alert.alert('Coming Soon', 'This feature is coming soon')
+            router.push('/ESPNLeagues')
           }}>
             <View className='flex-row items-center'>
             <Image source={require('~/assets/league_sync/espn_icon.jpeg')} style={{ width: 34, height: 34, marginRight: 8 }} />

@@ -1,0 +1,27 @@
+GET https://fan.api.espn.com/apis/v2/fans/%7B7CEE941B-D516-46C4-AE94-1BD516E6C483%7D?displayHiddenPrefs=true&context=fantasy&useCookieAuth=true&source=fantasyapp-ios&featureFlags=challengeEntries
+
+###
+
+GET http://127.0.0.1:5001/api/user-leagues
+x-espn-s2: AECgS8h35bKofYb9jWdUVu1unqi/DwWy+p2fekkwf5DRH59xoqoU3R08KrrVPNKY/qRuVL0htfBMCDyxxsgtr1jaJA7QIQATaRfvXwIyXJKJxh1QvtBxuM3p7X4D5LHX0Pqf0Sy7KuTtFnXLupT/lqwVDsVfnWPLMaV+cKj1rglCOGVUZ2oNQxceoUtATcBoAL5YR84PpyFdIgb0pN+mzRCOAfDGPnBBZENL2vdjcEvzsOmyKcyz7rXnVysYVuYvG8euPqXcLzDJW4qkb/TF+idxcIz9JIecbNcyNjkuov0Hrw==
+x-swid: {7CEE941B-D516-46C4-AE94-1BD516E6C483}
+
+###
+
+GET http://localhost:8081/api/getUserLeagues
+x-espn-s2: AECgS8h35bKofYb9jWdUVu1unqi/DwWy+p2fekkwf5DRH59xoqoU3R08KrrVPNKY/qRuVL0htfBMCDyxxsgtr1jaJA7QIQATaRfvXwIyXJKJxh1QvtBxuM3p7X4D5LHX0Pqf0Sy7KuTtFnXLupT/lqwVDsVfnWPLMaV+cKj1rglCOGVUZ2oNQxceoUtATcBoAL5YR84PpyFdIgb0pN+mzRCOAfDGPnBBZENL2vdjcEvzsOmyKcyz7rXnVysYVuYvG8euPqXcLzDJW4qkb/TF+idxcIz9JIecbNcyNjkuov0Hrw==
+x-swid: {7CEE941B-D516-46C4-AE94-1BD516E6C483}
+
+###
+
+GET http://127.0.0.1:5001/api/user-leagues/details/19545061/2024
+x-espn-s2: AECgS8h35bKofYb9jWdUVu1unqi/DwWy+p2fekkwf5DRH59xoqoU3R08KrrVPNKY/qRuVL0htfBMCDyxxsgtr1jaJA7QIQATaRfvXwIyXJKJxh1QvtBxuM3p7X4D5LHX0Pqf0Sy7KuTtFnXLupT/lqwVDsVfnWPLMaV+cKj1rglCOGVUZ2oNQxceoUtATcBoAL5YR84PpyFdIgb0pN+mzRCOAfDGPnBBZENL2vdjcEvzsOmyKcyz7rXnVysYVuYvG8euPqXcLzDJW4qkb/TF+idxcIz9JIecbNcyNjkuov0Hrw==
+x-swid: {7CEE941B-D516-46C4-AE94-1BD516E6C483}
+
+###
+
+GET http://127.0.0.1:5001/api/user-leagues/details/7215143/2024
+x-espn-s2: AECgS8h35bKofYb9jWdUVu1unqi/DwWy+p2fekkwf5DRH59xoqoU3R08KrrVPNKY/qRuVL0htfBMCDyxxsgtr1jaJA7QIQATaRfvXwIyXJKJxh1QvtBxuM3p7X4D5LHX0Pqf0Sy7KuTtFnXLupT/lqwVDsVfnWPLMaV+cKj1rglCOGVUZ2oNQxceoUtATcBoAL5YR84PpyFdIgb0pN+mzRCOAfDGPnBBZENL2vdjcEvzsOmyKcyz7rXnVysYVuYvG8euPqXcLzDJW4qkb/TF+idxcIz9JIecbNcyNjkuov0Hrw==
+x-swid: {7CEE941B-D516-46C4-AE94-1BD516E6C483}
+
+###

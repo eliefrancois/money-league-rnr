@@ -94,6 +94,48 @@ export default function TabLayout() {
           headerRight: () => null,
         }}
       />
+      <Tabs.Screen
+        name="league/[leagueId]"
+        options={{
+          href: null,
+          title: "View League",
+          headerShown: true,
+          headerLeft: () => (
+            <Pressable onPress={() => router.back()}>
+              {({ pressed }) => (
+                <FontAwesome
+                  name="chevron-left"
+                  size={25}
+                  color={Colors[isDarkColorScheme ? "dark" : "light"].text}
+                  style={{ marginLeft: 15, opacity: pressed ? 0.5 : 1 }}
+                />
+              )}
+            </Pressable>
+          ),
+          headerRight: () => <ThemeToggle />,
+        }}
+      />
+      <Tabs.Screen
+        name="ESPNLeagues"
+        options={{
+          href: null,
+          title: "ESPN Leagues",
+          headerShown: true,
+          headerLeft: () => (
+            <Pressable onPress={() => router.back()}>
+              {({ pressed }) => (
+                <FontAwesome
+                  name="chevron-left"
+                  size={25}
+                  color={Colors[isDarkColorScheme ? "dark" : "light"].text}
+                  style={{ marginLeft: 15, opacity: pressed ? 0.5 : 1 }}
+                />
+              )}
+            </Pressable>
+          ),
+          headerRight: () => <ThemeToggle />,
+        }}
+      />
       {/* <Tabs.Screen
         name="settings"
         options={{
