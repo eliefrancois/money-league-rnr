@@ -42,32 +42,30 @@ export default function Screen() {
     setProgress(Math.floor(Math.random() * 100));
   }
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      const { data, error } = await getProfile(user.id);
-      if (error) {
-        console.error("Error fetching profile:", error);
-      } else {
-        console.log("User profile:", data);
-        setProfile(data);
-      }
-    };
-    try {
+  useFocusEffect(
+    useCallback(() => {
+      const fetchProfile = async () => {
+        const { data, error } = await getProfile(user.id);
+        if (error) {
+          console.error("Error fetching profile:", error);
+        } else {
+          console.log("User profile:", data);
+          setProfile(data);
+        }
+      };
+  
       if (user) {
         setIsLoading(true);
         fetchProfile();
-      }
-      else {
+      } else {
         console.log("No user found");
-
       }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-    } finally {
-      console.log("Profile fetched");
-      
-    }
-  }, [user]);
+  
+      return () => {
+        setIsLoading(false); // Optionally reset loading state when focus is lost
+      };
+    }, [user])
+  );
 
   const handleSync = (platform: string) => {
     if (platform === "espn") {
