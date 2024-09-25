@@ -137,6 +137,9 @@ export default function ESPNLeagues() {
             // console.log("parsedCookies:", parsedCookies);
             // console.log("parsedCookies.SWID:", parsedCookies.SWID);
             // console.log("parsedCookies.espn_s2:", parsedCookies.espn_s2);
+            // console.log(await SecureStore.getItemAsync("espnCookies"));
+            // console.log(await AsyncStorage.getItem("leagueData"));
+            // console.log(await AsyncStorage.getItem("leagueDataUser"));
             await fetchAndParseLeagueData(storedCookies);
           }
         } catch (error) {

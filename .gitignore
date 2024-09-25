@@ -42,6 +42,8 @@ yarn-error.*
 expo-env.d.ts
 # @end expo-cli
 
-/api/test.json
-/api/espnAPI.http
-/api/flasktest+api.ts
+app/api/test.json
+app/api/test2.json
+app/api/test3.json
+app/api/espnAPI.http
+app/api/flasktest+api.ts
