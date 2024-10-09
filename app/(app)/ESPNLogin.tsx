@@ -32,10 +32,14 @@ export default function ESPNLogin() {
     // Clear cookies when component mounts
     webViewRef.current?.clearCache?.(true);
   }, []);
-  
+
+  // This method updates the user's profile to indicate that ESPN is synced
   const updateUserProfile = async () => {
     try {
-      await updateProfile(user.id, { is_espn_synced: true });
+      const espn_s2Cookie = await SecureStore.getItemAsync("espn_s2");
+      const SWIDCookie = await SecureStore.getItemAsync("espn_swid");
+      const updates = { is_espn_synced: true, espn_s2: espn_s2Cookie, espn_swid: SWIDCookie };
+      await updateProfile(user.id, updates);
       console.log('Profile updated successfully');
     } catch (error) {
       console.error('Error updating profile:', error);

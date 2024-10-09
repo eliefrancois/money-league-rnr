@@ -1,4 +1,4 @@
-import { Linking, View } from "react-native";
+import { Alert, Linking, View } from "react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import * as SecureStore from "expo-secure-store";
@@ -9,7 +9,8 @@ import { Button } from "~/components/ui/button";
 import { Text } from "~/components/ui/text";
 import { useColorScheme } from "~/lib/useColorScheme";
 import { ActivityIndicator } from "react-native";
-
+import { useSession } from "~/context";
+import { addOwnerToLeague, createMoneyLeague, getProfileESPNCookies } from "~/utils/supabase";
 export interface LeagueDetails {
   current_fantasy_week: number;
   current_nfl_week: number;
@@ -36,8 +37,10 @@ interface TeamInfo {
   points_against: number;
   points_for: number;
   team_name: string;
+  team_abbreviation: string;
   ties: number;
   wins: number;
+  team_id: number;
 }
 
 export default function LeaguePage() {
@@ -47,6 +50,39 @@ export default function LeaguePage() {
   const [buyInSubmitted, setBuyInSubmitted] = useState<boolean>(false);
   const { isDarkColorScheme } = useColorScheme();
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const { user } = useSession();
+
+  const handleCreateMoneyLeague = async () => {
+    try {
+      const leagueSize = data?.teams?.length || 0;
+      console.log("Creating money league");
+      const { error } = await createMoneyLeague(user.id, {
+        external_league_id: leagueId,
+        buy_in_amount: buyIn,
+        league_name: data?.name,
+        platform: "espn",
+        league_size: leagueSize,
+      });
+      if (error) {
+        console.error("Error creating money league:", error);
+        return; // Exit if league creation fails
+      }
+      console.log("Money league created successfully:", data);
+
+      // Proceed to add owner only if league creation was successful
+      const { error: ownerError } = await addOwnerToLeague(user.id, leagueId as string, {
+        external_league_id: leagueId,
+        has_paid: false,
+      });
+      if (ownerError) {
+        console.error("Error adding owner to league:", ownerError);
+      } else {
+        console.log("Owner added to league successfully:", data);
+      }
+    } catch (error) {
+      console.error("Error in handleCreateMoneyLeague:", error);
+    }
+  };
 
   const handleBuyInSubmit = () => {
     console.log("buyIn", buyIn);
@@ -78,32 +114,52 @@ export default function LeaguePage() {
       async function fetchLeagueDetails() {
         try {
           setIsLoading(true);
+          //Using local storage to get the cookies
           const storedCookies = await SecureStore.getItemAsync("espnCookies");
-          const year = new Date().getFullYear();
-          console.log("year in LeaguePage", year);
-          if (!storedCookies) {
-            console.error("No stored cookies found");
+          // Using supabase to get espn cookies 
+          const { data: espnCookies, error } = await getProfileESPNCookies(user.id);
+
+          //if error use local storage
+          if (error) {
+            console.error("Error fetching espn cookies:", error);
+            Alert.alert(
+              "Error Fetching League",
+              "There was a problem retrieving your league information. Please try again.",
+              [
+                {
+                  text: "OK",
+                  onPress: () => console.log("OK Pressed")
+                }
+              ]
+            );
             return;
+          }
+
+          const year = new Date().getFullYear();
+
+          if (!storedCookies) {
+            // console.warn("No stored cookies found");
+            // return
+          }
+          if (!espnCookies?.espn_s2 && !espnCookies?.espn_swid) {
+            console.log("No espn cookies found");
+            return Alert.alert("Error Fetching League, Please try again");
           }
           if (leagueId) {
             console.log("leagueId in LeaguePage", leagueId);
           }
-          const parsedCookies = JSON.parse(storedCookies); // TODO: fix this later shouldnt assert presence of cookies i should check if its null or undefined
+          // const parsedCookies = JSON.parse(storedCookies); // TODO: fix this later shouldnt assert presence of cookies i should check if its null or undefined
           const response = await fetch(
             `https://money-league-api.onrender.com/api/user-leagues/details/${leagueId}/${year}`,
             {
               headers: {
-                "X-SWID": parsedCookies.SWID,
-                "X-ESPN-S2": parsedCookies.espn_s2,
+                "X-SWID": espnCookies.espn_swid,
+                "X-ESPN-S2": espnCookies.espn_s2,
               },
             }
           );
           const responseData = await response.json();
           setData(responseData);
-          console.log(
-            "data from Flask API: /api/user-leagues/details/<string:league_id>/<string:year>",
-            data
-          );
         } catch (error) {
           console.error("Error fetching league details", error);
         } finally {

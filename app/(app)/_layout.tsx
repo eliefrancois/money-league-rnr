@@ -101,7 +101,7 @@ export default function TabLayout() {
           title: "View League",
           headerShown: true,
           headerLeft: () => (
-            <Pressable onPress={() => router.back()}>
+            <Pressable onPress={() => router.replace("/ESPNLeagues")}>
               {({ pressed }) => (
                 <FontAwesome
                   name="chevron-left"

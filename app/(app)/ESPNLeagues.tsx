@@ -1,6 +1,6 @@
-import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
 import { Text } from "~/components/ui/text";
-import { useRouter } from "expo-router";
+import { router, useRouter } from "expo-router";
 import { Button } from "~/components/ui/button";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
@@ -13,12 +13,15 @@ import {
 } from "~/app/api/types/getAllLeaguesAPITypes";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LeagueCard } from "~/components/LeagueCard";
+import { getProfileESPNCookies, updateProfile } from "~/utils/supabase";
+import { useSession } from "~/context";
 
 export default function ESPNLeagues() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [leagueData, setLeagueData] = useState<UserLeaguesData | null>(null);
   const [storedCookies, setStoredCookies] = useState<string | null>(null);
+  const { user } = useSession();
 
   const parseUserLeagueData = (
     data: RawUserLeaguesData,
@@ -72,22 +75,24 @@ export default function ESPNLeagues() {
       },
     };
   };
-
-  const fetchAndParseLeagueData = useCallback(async (storedCookies: string) => {
+  const fetchAndParseLeagueData = useCallback(async (cookies: string) => {
     try {
       setIsLoading(true);
       setError(null);
       console.log("in fetchAndParseLeagueData() calling Flask API");
       // console.log("storedCookies:", storedCookies);
       // console.log("Using hardcoded cookies:", storedCookies);
-      const parsedCookies = JSON.parse(storedCookies);
-      // console.log("parsedCookies:", parsedCookies);
 
-      if (!parsedCookies.SWID || !parsedCookies.espn_s2) {
-        console.log("Missing SWID or espn_s2 cookie.");
-        return;
-        // throw new Error("Missing SWID or espn_s2 cookie.");
-      }
+      const parsedCookies = JSON.parse(cookies);
+      console.log("parsedCookies:", parsedCookies);
+
+      // if (!parsedCookies.SWID || !parsedCookies.espn_s2) {
+      //   Alert.alert("Missing SWID or espn_s2 cookie.");
+      //   router.push("/");
+      //   console.log("Missing SWID or espn_s2 cookie.");
+      //   return;
+      //   // throw new Error("Missing SWID or espn_s2 cookie.");
+      // }
       // console.log("parsedCookies.SWID:", parsedCookies.SWID);
       // console.log("parsedCookies.espn_s2:", parsedCookies.espn_s2);
       const response = await fetch(
@@ -95,7 +100,7 @@ export default function ESPNLeagues() {
         {
           method: "GET",
           headers: {
-            "X-SWID": parsedCookies.SWID,
+            "X-SWID": parsedCookies.espn_swid,
             "X-ESPN-S2": parsedCookies.espn_s2,
           },
         }
@@ -106,7 +111,7 @@ export default function ESPNLeagues() {
 
       const rawData: RawUserLeaguesData = await response.json();
       console.log("Flask API response parsing now ");
-      const parsedData = parseUserLeagueData(rawData, parsedCookies.SWID);
+      const parsedData = parseUserLeagueData(rawData, parsedCookies.espn_swid);
       if (!parsedData) {
         console.log("No data parsed");
         return;
@@ -116,7 +121,7 @@ export default function ESPNLeagues() {
 
       setLeagueData(parsedData);
       await AsyncStorage.setItem("leagueData", JSON.stringify(parsedData));
-      await AsyncStorage.setItem("leagueDataUser", parsedCookies.SWID);
+      await AsyncStorage.setItem("leagueDataUser", parsedCookies.espn_swid);
       console.log("League Data saved to Async Storage");
     } catch (error) {
       console.error("Error fetching league data:", error);
@@ -130,17 +135,26 @@ export default function ESPNLeagues() {
     useCallback(() => {
       const fetchLeagues = async () => {
         try {
+          console.log("Checking SecureStore for ESPN Cookies");
           const storedCookies = await SecureStore.getItemAsync("espnCookies");
-          if (storedCookies) {
-            // const parsedCookies = JSON.parse(storedCookies);
-            // console.log("storedCookies:", storedCookies);
-            // console.log("parsedCookies:", parsedCookies);
-            // console.log("parsedCookies.SWID:", parsedCookies.SWID);
-            // console.log("parsedCookies.espn_s2:", parsedCookies.espn_s2);
-            // console.log(await SecureStore.getItemAsync("espnCookies"));
-            // console.log(await AsyncStorage.getItem("leagueData"));
-            // console.log(await AsyncStorage.getItem("leagueDataUser"));
+
+          if (storedCookies !== null) {
+            const parsedCookies = JSON.parse(storedCookies);
+            console.log("parsedCookies.SWID:", parsedCookies.SWID);
+            console.log("parsedCookies.espn_s2:", parsedCookies.espn_s2);
             await fetchAndParseLeagueData(storedCookies);
+          }
+          else {
+            console.log("No Cookies in SecureStore, pulling from DB");
+            const { data, error } = await getProfileESPNCookies(user.id);
+            if (error) {
+              console.error("Error fetching profile:", error);
+            } else {
+              if (data?.espn_s2 && data?.espn_swid) {
+                const cookies = JSON.stringify({ espn_s2: data.espn_s2, espn_swid: data.espn_swid });
+                await fetchAndParseLeagueData(cookies);
+              }
+            }
           }
         } catch (error) {
           console.error("Error fetching data:", error);

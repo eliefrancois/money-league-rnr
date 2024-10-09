@@ -24,7 +24,7 @@ import {
 } from "~/components/ui/tooltip";
 import { useSession } from "~/context";
 import { useCallback, useEffect, useState } from "react";
-import { getProfile } from "~/utils/supabase";
+import { getProfile, updateProfile } from "~/utils/supabase";
 import { Image } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import * as SecureStore from "expo-secure-store";
@@ -49,18 +49,16 @@ export default function Screen() {
         if (error) {
           console.error("Error fetching profile:", error);
         } else {
-          console.log("User profile:", data);
           setProfile(data);
         }
       };
-  
+
       if (user) {
-        setIsLoading(true);
         fetchProfile();
       } else {
         console.log("No user found");
       }
-  
+
       return () => {
         setIsLoading(false); // Optionally reset loading state when focus is lost
       };

@@ -3,7 +3,7 @@ import 'react-native-url-polyfill/auto'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl =  process.env.EXPO_PUBLIC_DATABASE_URL || "";
+const supabaseUrl = process.env.EXPO_PUBLIC_DATABASE_URL || "";
 const supabaseAnonKey = process.env.EXPO_PUBLIC_DATABASE_ANON_KEY || "";
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -161,6 +161,15 @@ export const getProfile = async (userId: string) => {
     .single();
   return { data, error };
 }
+
+export const getProfileESPNCookies = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('espn_s2, espn_swid')
+    .eq('id', userId)
+    .single();
+  return { data, error };
+}
 /**
  * Updates a user's profile in the 'profiles' table.
  * 
@@ -183,7 +192,40 @@ export const updateProfile = async (userId: string, updates: { [key: string]: an
   const { data, error } = await supabase
     .from('profiles')
     .update(updates)
-    .eq('id', userId);
+    .eq('id', userId)
+    .select();
+  return { data, error };
+}
+
+/**
+ * Creates a new money league in the 'leagues' table.
+ * 
+ * Use cases:
+ * - Creating a new money league for a league
+ * 
+ * Example usage:
+ * const userId = 'user123';
+ * const leagueDetails = { league_id: 'league123', buy_in: '100' };
+ * const { data, error } = await createMoneyLeague(userId, leagueDetails);
+ * if (error) {
+ *   console.error('Error creating money league:', error);
+ * } else {
+ *   console.log('Money league created successfully:', data);
+ * }
+ */
+export const createMoneyLeague = async (userId: string, leagueDetails: { [key: string]: any }) => {
+  const { data, error } = await supabase
+    .from('leagues')
+    .insert([{ user_id: userId, ...leagueDetails }])
+    .select();
+  return { data, error };
+}
+
+export const addOwnerToLeague = async (userId: string, leagueId: string, leagueDetails: { [key: string]: any }) => {
+  const { data, error } = await supabase
+    .from('owner_leagues')
+    .insert([{ owner_id: userId, league_id: leagueId, ...leagueDetails }])
+    .select();
   return { data, error };
 }
 /**
@@ -210,4 +252,4 @@ export const onAuthStateChange = (callback: (event: string, session: any) => voi
 }
 
 
-  
+
