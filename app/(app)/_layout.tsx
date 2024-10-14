@@ -25,13 +25,13 @@ export default function TabLayout() {
         headerRight: () => <ThemeToggle />,
         headerLeft: () => (
           <Link href="/settingsModal" asChild>
-            <Pressable>
+            <Pressable className="flex-1 aspect-square pt-0.5 justify-center items-center web:px-5">
               {({ pressed }) => (
                 <FontAwesome
                   name="gear"
                   size={25}
                   color={Colors[isDarkColorScheme ? "dark" : "light"].text}
-                  style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
+                  style={{ opacity: pressed ? 0.5 : 1 }}
                 />
               )}
             </Pressable>

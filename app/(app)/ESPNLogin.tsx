@@ -40,7 +40,6 @@ export default function ESPNLogin() {
       const SWIDCookie = await SecureStore.getItemAsync("espn_swid");
       const updates = { is_espn_synced: true, espn_s2: espn_s2Cookie, espn_swid: SWIDCookie };
       await updateProfile(user.id, updates);
-      console.log('Profile updated successfully');
     } catch (error) {
       console.error('Error updating profile:', error);
     }
@@ -79,7 +78,9 @@ export default function ESPNLogin() {
     console.log("Cookies saved to secure store");
     console.log("Cookies ESPNLogin", extractedCookies);
 
-    await updateUserProfile();
+    await updateUserProfile().then(() => {
+      console.log("User profile updated successfully");
+    })
 
     // Navigate back to the previous screen
     router.replace("/");
