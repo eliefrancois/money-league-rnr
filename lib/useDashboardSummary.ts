@@ -50,17 +50,19 @@ export function useDashboardSummary(): DashboardSummary {
           return;
         }
 
-        // Pull every ledger row tied to the user's memberships. RLS on
-        // pot_ledger restricts to leagues the caller belongs to, and the
-        // !inner join filters to entries on this user's specific roster.
-        // We keep this as a single round-trip rather than two queries so
-        // the hero number and the activity feed stay consistent.
+        // Pull every ledger row tied to the user's profile. Note:
+        // pot_ledger.member_id is misnamed — it actually stores the
+        // payer / recipient profile_id (set in stripe-webhook and the
+        // payout runner), not a league_members.id. There's no FK from
+        // pot_ledger to league_members, which is why the previous
+        // !inner embed failed in PostgREST. We embed the league row
+        // for its name via the existing pot_ledger_league_id_fkey.
         const { data, error } = await supabase
           .from("pot_ledger")
           .select(
-            "id, type, amount_cents, created_at, league_id, league_members!inner(linked_profile_id), leagues!inner(name)",
+            "id, type, amount_cents, created_at, league_id, leagues:league_id(name)",
           )
-          .eq("league_members.linked_profile_id", profileId)
+          .eq("member_id", profileId)
           .order("created_at", { ascending: false })
           .limit(50);
 
@@ -80,7 +82,10 @@ export function useDashboardSummary(): DashboardSummary {
           amount_cents: number;
           created_at: string;
           league_id: string;
-          leagues: { name: string };
+          // Single-row embed comes back as object | null; PostgREST may
+          // also surface it as an array depending on relationship hint,
+          // so handle both shapes defensively.
+          leagues: { name: string } | { name: string }[] | null;
         }>;
 
         const total = rows
@@ -89,14 +94,17 @@ export function useDashboardSummary(): DashboardSummary {
 
         setActiveMoneyCents(total);
         setActivity(
-          rows.slice(0, 5).map((r) => ({
-            id: r.id,
-            type: r.type,
-            amountCents: r.amount_cents,
-            createdAt: r.created_at,
-            leagueId: r.league_id,
-            leagueName: r.leagues?.name ?? "League",
-          })),
+          rows.slice(0, 5).map((r) => {
+            const leagueRow = Array.isArray(r.leagues) ? r.leagues[0] : r.leagues;
+            return {
+              id: r.id,
+              type: r.type,
+              amountCents: r.amount_cents,
+              createdAt: r.created_at,
+              leagueId: r.league_id,
+              leagueName: leagueRow?.name ?? "League",
+            };
+          }),
         );
         setLoading(false);
       };
