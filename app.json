@@ -1,33 +1,39 @@
 {
   "expo": {
-    "name": "Money League",
+    "name": "PotKeeper",
     "slug": "money-league",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "icon": "./assets/images/potkeeper-icon.png",
+    "scheme": "potkeeper",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/splash.png",
+      "image": "./assets/images/potkeeper-mark.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FFFFFF",
+      "dark": {
+        "image": "./assets/images/potkeeper-mark.png",
+        "backgroundColor": "#0A0A0F"
+      }
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.eliefrancois.moneyleague"
     },
     "android": {
+      "package": "com.eliefrancois.moneyleague",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/potkeeper-mark.png",
+        "backgroundColor": "#22C55E"
       }
     },
     "web": {
       "bundler": "metro",
       "output": "server",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/potkeeper-mark.png"
     },
     "plugins": [
       [
@@ -36,7 +42,8 @@
           "origin": "https://www.elief.dev"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
@@ -47,9 +54,7 @@
       }
     },
     "owner": "eliefrancois",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "updates": {
       "url": "https://u.expo.dev/7910e433-fe20-4995-8a11-4b67be96dd5d"
     }

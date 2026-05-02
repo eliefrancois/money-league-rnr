@@ -6,7 +6,7 @@ import { Colors } from "~/constants/Colors";
 import { useColorScheme } from "~/lib/useColorScheme";
 // Import your global CSS file
 import "~/global.css";
-import { Pressable } from "react-native";
+import { Image, Pressable, View } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 
 export default function TabLayout() {
@@ -22,14 +22,30 @@ export default function TabLayout() {
         tabBarActiveTintColor:
           Colors[isDarkColorScheme ? "dark" : "light"].tint,
         headerShown: true,
-        headerRight: () => <ThemeToggle />,
+        headerTitleStyle: {
+          fontWeight: 'bold',
+        },
+        headerRight: () => (
+          <View style={{ paddingRight: 12 }}>
+            <ThemeToggle />
+          </View>
+        ),
         headerLeft: () => (
           <Link href="/settingsModal" asChild>
-            <Pressable className="flex-1 aspect-square pt-0.5 justify-center items-center web:px-5">
+            <Pressable
+              hitSlop={12}
+              style={{
+                width: 40,
+                height: 40,
+                marginLeft: 8,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               {({ pressed }) => (
                 <FontAwesome
                   name="gear"
-                  size={25}
+                  size={22}
                   color={Colors[isDarkColorScheme ? "dark" : "light"].text}
                   style={{ opacity: pressed ? 0.5 : 1 }}
                 />
@@ -43,6 +59,16 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
+          // Branded header on the home surface — text titles on subscreens.
+          headerTitle: () => (
+            <View className="flex-row items-center">
+              <Image
+                source={require("~/assets/images/potkeeper-mark.png")}
+                style={{ width: 40, height: 40 }}
+                resizeMode="contain"
+              />
+            </View>
+          ),
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon
               name={focused ? "home" : "home-outline"}
@@ -95,31 +121,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="league/[leagueId]"
+        name="sleeper-link"
         options={{
           href: null,
-          title: "View League",
-          headerShown: true,
-          headerLeft: () => (
-            <Pressable onPress={() => router.replace("/ESPNLeagues")}>
-              {({ pressed }) => (
-                <FontAwesome
-                  name="chevron-left"
-                  size={25}
-                  color={Colors[isDarkColorScheme ? "dark" : "light"].text}
-                  style={{ marginLeft: 15, opacity: pressed ? 0.5 : 1 }}
-                />
-              )}
-            </Pressable>
-          ),
-          headerRight: () => <ThemeToggle />,
-        }}
-      />
-      <Tabs.Screen
-        name="ESPNLeagues"
-        options={{
-          href: null,
-          title: "ESPN Leagues",
+          title: "Sync Sleeper",
           headerShown: true,
           headerLeft: () => (
             <Pressable onPress={() => router.back()}>
@@ -134,6 +139,25 @@ export default function TabLayout() {
             </Pressable>
           ),
           headerRight: () => <ThemeToggle />,
+        }}
+      />
+      <Tabs.Screen
+        name="league/[id]"
+        options={{
+          href: null,
+          // The nested Stack at app/(app)/league/[id]/_layout.tsx provides
+          // per-screen headers (League, Set up the pot, etc.). Hiding the
+          // Tabs header here prevents a double header.
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="wallet"
+        options={{
+          href: null,
+          // Wallet renders its own top bar (back chevron + refresh) so it
+          // can lay out the page without the tab header in the way.
+          headerShown: false,
         }}
       />
       {/* <Tabs.Screen

@@ -7,8 +7,8 @@ import { StyleSheet } from "react-native";
 import { useEffect, useRef } from "react";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { updateProfile } from "~/utils/supabase";
+import { storage } from "~/utils/storage";
 import { useSession } from "~/context";
 
 export default function ESPNLogin() {
@@ -20,8 +20,8 @@ export default function ESPNLogin() {
     const clearCookiesAndData = async () => {
       console.log("Clearing existing cookies and league data");
       await SecureStore.deleteItemAsync("espnCookies");
-      await AsyncStorage.removeItem("leagueData");
-      await AsyncStorage.removeItem("leagueDataUser");
+      await storage.removeItem("leagueData");
+      await storage.removeItem("leagueDataUser");
       webViewRef.current?.clearCache?.(true);
     };
 

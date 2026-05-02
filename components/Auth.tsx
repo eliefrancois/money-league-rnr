@@ -1,11 +1,10 @@
 import React, { useState } from 'react'
-import { Alert, Pressable, View } from 'react-native'
+import { Alert, Image, Pressable, View } from 'react-native'
 import { Input } from './ui/input'
 import { Button } from './ui/button'
 import { Text } from './ui/text'
 import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from './ui/card'
 import { Label } from './ui/label'
-import { supabase } from '~/utils/supabase'
 import { useSession } from '~/context'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 
@@ -13,37 +12,28 @@ export default function Auth() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const {signIn } = useSession();
+  const { signIn, signUp } = useSession();
   const [value, setValue] = useState('signIn')
   const [showPassword, setShowPassword] = useState(false)
-  
+
   async function signInWithEmail() {
     setLoading(true)
-    const { error } = await signIn(
-      email,
-      password,
-    )
-    
-    if (error) {
-      Alert.alert(error.message)
-    } else {
-      Alert.alert('Signed in successfully!')
-    }
+    const { error } = await signIn(email, password)
+    // Routing happens reactively via RoutingGate when the session updates;
+    // no need to navigate here.
+    if (error) Alert.alert(error.message)
     setLoading(false)
   }
 
   async function signUpWithEmail() {
     setLoading(true)
-    const { error } = await supabase.auth.signUp({
-      email: email,
-      password: password,
-    })
-
-    if (error) {
-      Alert.alert(error.message)
-    } else {
-      Alert.alert('Please check your inbox for email verification!')
-    }
+    const { error } = await signUp(email, password)
+    // On success the dev-only auto-confirm trigger signs the user in
+    // immediately; SessionProvider sees SIGNED_IN, RoutingGate sends them
+    // to /(signIn)/eligibility. No alert needed in the happy path.
+    // (Production note: with email confirmation enabled this becomes a
+    // "check your inbox" toast — wire that when we flip the flag.)
+    if (error) Alert.alert(error.message)
     setLoading(false)
   }
 
@@ -94,7 +84,17 @@ export default function Auth() {
     //     </CardFooter>
     //   </Card>
     // </View>
-    <View className='flex-1 justify-center p-6'>
+    <View className='flex-1 justify-center p-6 gap-6'>
+      <View className='items-center'>
+        <Image
+          source={require('~/assets/images/potkeeper-primary.png')}
+          style={{ width: 240, height: 80 }}
+          resizeMode='contain'
+        />
+        <Text className='text-xs text-muted-foreground mt-1'>
+          Keep the pot. Skip the drama.
+        </Text>
+      </View>
       <Tabs
         value={value}
         onValueChange={setValue}

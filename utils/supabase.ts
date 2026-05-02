@@ -1,14 +1,15 @@
 import { AppState } from 'react-native'
 import 'react-native-url-polyfill/auto'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { createClient } from '@supabase/supabase-js'
+import { storage } from './storage'
+import type { Database } from '~/lib/database.types'
 
 const supabaseUrl = process.env.EXPO_PUBLIC_DATABASE_URL || "";
 const supabaseAnonKey = process.env.EXPO_PUBLIC_DATABASE_ANON_KEY || "";
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
+    storage: storage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
@@ -162,14 +163,9 @@ export const getProfile = async (userId: string) => {
   return { data, error };
 }
 
-export const getProfileESPNCookies = async (userId: string) => {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('espn_s2, espn_swid')
-    .eq('id', userId)
-    .single();
-  return { data, error };
-}
+// NOTE: getProfileESPNCookies removed — ESPN cookies will be stored in
+// Supabase Vault (encrypted) once we port the ESPN integration in Session 4.
+// Until then, the existing ESPN flow in app/(app)/ESPNLogin.tsx is non-functional.
 /**
  * Updates a user's profile in the 'profiles' table.
  * 
@@ -197,37 +193,10 @@ export const updateProfile = async (userId: string, updates: { [key: string]: an
   return { data, error };
 }
 
-/**
- * Creates a new money league in the 'leagues' table.
- * 
- * Use cases:
- * - Creating a new money league for a league
- * 
- * Example usage:
- * const userId = 'user123';
- * const leagueDetails = { league_id: 'league123', buy_in: '100' };
- * const { data, error } = await createMoneyLeague(userId, leagueDetails);
- * if (error) {
- *   console.error('Error creating money league:', error);
- * } else {
- *   console.log('Money league created successfully:', data);
- * }
- */
-export const createMoneyLeague = async (userId: string, leagueDetails: { [key: string]: any }) => {
-  const { data, error } = await supabase
-    .from('leagues')
-    .insert([{ user_id: userId, ...leagueDetails }])
-    .select();
-  return { data, error };
-}
-
-export const addOwnerToLeague = async (userId: string, leagueId: string, leagueDetails: { [key: string]: any }) => {
-  const { data, error } = await supabase
-    .from('owner_leagues')
-    .insert([{ owner_id: userId, league_id: leagueId, ...leagueDetails }])
-    .select();
-  return { data, error };
-}
+// NOTE: createMoneyLeague + addOwnerToLeague helpers were removed during the
+// v0 → v1 schema refactor. The new league import flow goes through the
+// `sleeper-import-league` Edge Function (and equivalents per platform) for
+// atomic writes. See app/(app)/sleeper-link.tsx.
 /**
  * Sets up a listener for authentication state changes.
  * 

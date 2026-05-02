@@ -1,86 +1,123 @@
-import { supabase } from "~/utils/supabase";
-import { Session } from "@supabase/supabase-js";
-import { Href, Redirect, Slot, useRouter, useSegments } from "expo-router";
-import { useEffect, useState } from "react";
-import { SessionProvider } from "~/context";
+import { Slot, useRouter, useSegments } from "expo-router";
 import { Theme, ThemeProvider } from "@react-navigation/native";
-import { NAV_THEME } from "~/lib/constants";
 import { StatusBar } from "expo-status-bar";
+import * as React from "react";
+
+import { SessionProvider, useSession } from "~/context";
+import { ProfileProvider, useProfile } from "~/context/profile";
+import { NAV_THEME } from "~/lib/constants";
 import { useColorScheme } from "~/lib/useColorScheme";
 
-// Makes sure the user is authenticated before accessing protected pages
-const InitialLayout = () => {
-  const { isDarkColorScheme } = useColorScheme();
+const LIGHT_THEME: Theme = {
+  dark: false,
+  colors: NAV_THEME.light,
+  fonts: NAV_THEME.light.fonts,
+};
 
+const DARK_THEME: Theme = {
+  dark: true,
+  colors: NAV_THEME.dark,
+  fonts: NAV_THEME.dark.fonts,
+};
+
+// Eligibility-flow screens that should NOT be redirected away even though
+// the profile is in a non-app state (pending / suspended). Tested against
+// `segments[1]` — i.e. the route name inside the (signIn) group.
+const ELIGIBILITY_FLOW_ROUTES = new Set([
+  "eligibility",
+  "underage",
+  "restricted",
+  "suspended",
+]);
+
+// Reactive routing gate: keeps the user in the correct route group based on
+// session + profile eligibility state (Checkpoint 1).
+//
+// State machine:
+//   no session                              → /(signIn)/
+//   session + geo='pending'                 → /(signIn)/eligibility
+//   session + geo='suspended'               → /(signIn)/suspended
+//                                             (unless already on
+//                                             underage / restricted /
+//                                             eligibility — in which case
+//                                             stay there)
+//   session + geo='declared' | 'verified'   → /(app)/
+function RoutingGate({ children }: { children: React.ReactNode }) {
+  const { session } = useSession();
+  const { profile, isLoading: profileLoading } = useProfile();
+  const segments = useSegments();
   const router = useRouter();
 
-  const LIGHT_THEME: Theme = {
-    dark: false,
-    colors: NAV_THEME.light,
-  };
-  const DARK_THEME: Theme = {
-    dark: true,
-    colors: NAV_THEME.dark,
-  };
+  React.useEffect(() => {
+    const inAppGroup = segments[0] === "(app)";
+    const inSignInGroup = segments[0] === "(signIn)";
+    const eligibilityRoute = segments[1] ?? "";
 
-  useEffect(() => {
-    // Listen for changes to authentication state
-    const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("supabase.auth.onAuthStateChange", event, session);
-
-      if ((event === "SIGNED_IN" && session) || (event === "INITIAL_SESSION" && session)) {
-        console.log("user signed in");
-        router.replace("/(app)/");
-      } else if ((event === "SIGNED_OUT" && !session) || (event === "INITIAL_SESSION" && !session)) {
-        console.log("user signed out");
-        router.replace("/(signIn)/" as unknown as Href<"/(signIn)/">);
+    if (!session) {
+      // No session: kick back to the welcome screen from the (app) group OR
+      // from any deep eligibility-flow screen the user might have been on
+      // when they signed out.
+      const onSignInIndex = inSignInGroup && (segments[1] ?? "") === "";
+      if (inAppGroup || (inSignInGroup && !onSignInIndex)) {
+        router.replace("/(signIn)/");
       }
+      return;
+    }
 
-    });
+    // Wait for the profile fetch to land before making routing decisions —
+    // otherwise we briefly bounce signed-in users back to /(signIn) on
+    // cold start.
+    if (profileLoading || !profile) return;
 
-    return () => {
-      data.subscription.unsubscribe();
-    };
-  }, [router]);
+    const geo = profile.geo_status;
 
-  /*
-  useEffect(() => {
-    if (!initialized) return;
+    if (geo === "pending") {
+      // Allow the user to stay on any eligibility-flow screen. Covers two
+      // cases: (1) normal flow — they're on /eligibility filling out the
+      // form, and (2) just-submitted-and-failed — eligibility-fail-cleanup
+      // has deleted their auth user but the local profile cache is stale-
+      // pending while we navigate to /underage or /restricted.
+      if (!ELIGIBILITY_FLOW_ROUTES.has(eligibilityRoute)) {
+        router.replace("/(signIn)/eligibility");
+      }
+      return;
+    }
 
-    // Check if the path/url is in the (auth) group
-    const inAuthGroup = segments[0] === "(app)";
+    if (geo === "suspended") {
+      // Allow the user to stay on any eligibility-flow screen that's
+      // already informing them they're blocked. Catches stragglers from
+      // the (app) group or a stale signed-in session.
+      if (
+        inAppGroup ||
+        (inSignInGroup && !ELIGIBILITY_FLOW_ROUTES.has(eligibilityRoute))
+      ) {
+        router.replace("/(signIn)/suspended");
+      }
+      return;
+    }
 
-    const loggedIn = session && !inAuthGroup;
-    const loggedOut = !session;
-
-    // logs to debug the flow of logging in 
-    // BUG: When a user is logged in and goes to the login page, the user is not redirected to the home page
-    console.log("loggedIn:", loggedIn);
-    console.log("loggedOut:", loggedOut);
-    console.log("app is in path", segments[0], "inAuthGroup is: ", segments[0] === "(app)");
-    console.log("session", session);
-
-    if (loggedIn) {
-      // Redirect authenticated users to the list page
-      console.log("redirecting to home page");
+    // declared or verified → into the app
+    if (inSignInGroup) {
       router.replace("/(app)/");
     }
-    // else if (loggedOut) {
-    //   // Redirect unauthenticated users to the login page
-    //   console.log("redirecting to login page");
-    //   router.replace("/");
-    // }
-  }, [session, initialized]);
-  */
+  }, [session, segments, router, profile, profileLoading]);
+
+  return <>{children}</>;
+}
+
+export default function RootLayout() {
+  const { isDarkColorScheme } = useColorScheme();
 
   return (
     <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
       <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
       <SessionProvider>
-        <Slot />
+        <ProfileProvider>
+          <RoutingGate>
+            <Slot />
+          </RoutingGate>
+        </ProfileProvider>
       </SessionProvider>
     </ThemeProvider>
   );
-};
-
-export default InitialLayout;
+}

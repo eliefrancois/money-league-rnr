@@ -1,0 +1,72 @@
+[
+  {
+    "defaultPositionId": 4,
+    "droppable": true,
+    "eligibleSlots": [5, 6, 23, 7, 20, 21],
+    "firstName": "Curtis",
+    "fullName": "Curtis Hodges",
+    "id": 4242896,
+    "lastName": "Hodges",
+    "ownership": {
+      "percentOwned": 0.009438573255062902
+    },
+    "proTeamId": 0,
+    "universeId": 0
+  },
+  {
+    "defaultPositionId": 9,
+    "droppable": true,
+    "eligibleSlots": [8, 11, 15, 20, 21],
+    "firstName": "D.J.",
+    "fullName": "D.J. Davidson",
+    "id": 4242899,
+    "lastName": "Davidson",
+    "ownership": {
+      "percentOwned": 0.0610079575596817
+    },
+    "proTeamId": 19,
+    "universeId": 2
+  },
+  {
+    "defaultPositionId": 10,
+    "droppable": true,
+    "eligibleSlots": [9, 11, 15, 20, 21],
+    "firstName": "DeMarquis",
+    "fullName": "DeMarquis Gates",
+    "id": 3128747,
+    "lastName": "Gates",
+    "ownership": {
+      "percentOwned": 0.010199918400652794
+    },
+    "proTeamId": 0,
+    "universeId": 0
+  },
+  {
+    "defaultPositionId": 11,
+    "droppable": true,
+    "eligibleSlots": [10, 15, 20, 21],
+    "firstName": "Roquan",
+    "fullName": "Roquan Smith",
+    "id": 3915189,
+    "lastName": "Smith",
+    "ownership": {
+      "percentOwned": 94.89180910977176
+    },
+    "proTeamId": 33,
+    "universeId": 1
+  },
+  {
+    "defaultPositionId": 12,
+    "droppable": true,
+    "eligibleSlots": [12, 14, 15, 20, 21],
+    "firstName": "Tre",
+    "fullName": "Tre Avery",
+    "id": 4259300,
+    "lastName": "Avery",
+    "ownership": {
+      "percentOwned": 0.010199918400652794
+    },
+    "proTeamId": 31,
+    "universeId": 1
+  }
+]
