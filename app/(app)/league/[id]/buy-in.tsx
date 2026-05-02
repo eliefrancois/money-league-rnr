@@ -78,6 +78,57 @@ function detectPreset(
   return "custom";
 }
 
+// `redeem-sponsorship-code` returns 4xx with `{ error: "<code>" }` for known
+// failure modes. Map those codes to user copy here so the engineer-facing
+// strings never leak into Alert dialogs.
+const SPONSORSHIP_ERROR_COPY: Record<string, { title: string; message: string }> = {
+  invalid_code: {
+    title: "Code not found",
+    message: "Double-check the spelling — sponsorship codes are case-insensitive but every character has to match.",
+  },
+  expired: {
+    title: "Code expired",
+    message: "This sponsorship has passed its expiration date. Reach out to your partner for a fresh code.",
+  },
+  already_redeemed: {
+    title: "Already used",
+    message: "This code has already been claimed by another league.",
+  },
+  already_redeemed_for_this_league: {
+    title: "Already linked",
+    message: "This league already has this sponsorship code applied.",
+  },
+  league_already_has_sponsorship: {
+    title: "Sponsorship already linked",
+    message: "This league already has an active sponsorship. Cancel it first or wait for it to expire.",
+  },
+};
+
+async function mapSponsorshipError(error: unknown): Promise<{ title: string; message: string }> {
+  let code: string | null = null;
+  if (error && typeof error === "object" && "context" in error) {
+    const ctx = (error as { context?: unknown }).context;
+    if (ctx && typeof (ctx as Response).json === "function") {
+      try {
+        const body = (await (ctx as Response).clone().json()) as { error?: string };
+        if (typeof body?.error === "string") code = body.error;
+      } catch {
+        // body wasn't JSON; fall through to generic copy
+      }
+    }
+  }
+  if (code && SPONSORSHIP_ERROR_COPY[code]) {
+    return SPONSORSHIP_ERROR_COPY[code];
+  }
+  return {
+    title: "Could not apply code",
+    message:
+      error instanceof Error && error.message
+        ? error.message
+        : "Check the code and try again.",
+  };
+}
+
 function sameRanks(a: Record<string, number>, b: Record<string, number>) {
   const keysA = Object.keys(a);
   const keysB = Object.keys(b);
@@ -102,6 +153,9 @@ export default function BuyInSetupScreen() {
     "members",
   );
   const [saving, setSaving] = useState(false);
+  const [sponsorOpen, setSponsorOpen] = useState(false);
+  const [sponsorCode, setSponsorCode] = useState("");
+  const [sponsorBusy, setSponsorBusy] = useState(false);
 
   // Hydrate from DB on mount (covers both first-time and edit flows).
   useEffect(() => {
@@ -150,6 +204,60 @@ export default function BuyInSetupScreen() {
   const totalPotCents = buyInCents * memberCount;
   const isCommissioner =
     user != null && league?.commissioner_profile_id === user.id;
+
+  const handleApplySponsor = async () => {
+    if (!league || !user) return;
+    if (!isCommissioner) return;
+    const raw = sponsorCode.trim();
+    if (raw.length < 4) {
+      Alert.alert("Enter a code", "Paste the full sponsorship code.");
+      return;
+    }
+    setSponsorBusy(true);
+    const { data, error } = await supabase.functions.invoke<{
+      ok?: boolean;
+      partner_name?: string;
+      boost_max_cents?: number;
+      error?: string;
+    }>("redeem-sponsorship-code", {
+      body: { league_id: league.id, code: raw },
+    });
+    setSponsorBusy(false);
+    if (error) {
+      const { title, message } = await mapSponsorshipError(error);
+      Alert.alert(title, message);
+      return;
+    }
+    if (!data?.ok) {
+      Alert.alert(
+        "Could not apply code",
+        "Double-check the code or try again later.",
+      );
+      return;
+    }
+    const { data: fresh, error: refetchErr } = await supabase
+      .from("leagues")
+      .select("*")
+      .eq("id", league.id)
+      .maybeSingle();
+    if (refetchErr || !fresh) {
+      Alert.alert(
+        "Code applied",
+        "Refresh the screen if you do not see the updated sponsorship status.",
+      );
+      return;
+    }
+    setLeague(fresh);
+    setSponsorCode("");
+    setSponsorOpen(false);
+    Alert.alert(
+      "Sponsorship linked",
+      [
+        data?.partner_name ? `${data.partner_name} · ` : "",
+        `Up to ${formatCents(data?.boost_max_cents ?? 0)} may credit the pot once your league hits the threshold.`,
+      ].join(""),
+    );
+  };
 
   const handleSave = async () => {
     if (!league || !user) return;
@@ -283,6 +391,18 @@ export default function BuyInSetupScreen() {
           />
         </Section>
 
+        <Section title="Sponsorship (optional)">
+          <SponsorshipSetupSection
+            league={league}
+            sponsorOpen={sponsorOpen}
+            sponsorCode={sponsorCode}
+            sponsorBusy={sponsorBusy}
+            onToggleOpen={() => setSponsorOpen((o) => !o)}
+            onSponsorCodeChange={setSponsorCode}
+            onApply={handleApplySponsor}
+          />
+        </Section>
+
         <PreviewCard
           buyInCents={buyInCents}
           totalPotCents={totalPotCents}
@@ -317,6 +437,104 @@ export default function BuyInSetupScreen() {
 // =============================================================================
 // Sub-components
 // =============================================================================
+
+function SponsorshipSetupSection({
+  league,
+  sponsorOpen,
+  sponsorCode,
+  sponsorBusy,
+  onToggleOpen,
+  onSponsorCodeChange,
+  onApply,
+}: {
+  league: League;
+  sponsorOpen: boolean;
+  sponsorCode: string;
+  sponsorBusy: boolean;
+  onToggleOpen: () => void;
+  onSponsorCodeChange: (t: string) => void;
+  onApply: () => void;
+}) {
+  const { isDarkColorScheme } = useColorScheme();
+
+  if (
+    league.sponsorship_status === "redeemed_pending" ||
+    league.sponsorship_status === "funded"
+  ) {
+    const max = league.sponsorship_boost_max_cents ?? 0;
+    return (
+      <View className="rounded-2xl border border-sky-500/25 bg-sky-500/5 p-4 gap-1">
+        <Text className="text-[10px] uppercase tracking-wide font-semibold text-sky-700 dark:text-sky-400">
+          Sponsorship
+        </Text>
+        <Text className="text-sm text-foreground">
+          {league.sponsorship_status === "funded"
+            ? `PotKeeper boost credited (up to ${formatCents(max)} per your code rules).`
+            : `Code linked — up to ${formatCents(max)} unlocks when enough linked members have paid, before the code expires.`}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="gap-2">
+      {league.sponsorship_status === "forfeited" && (
+        <View className="rounded-xl bg-muted/40 px-3 py-2">
+          <Text className="text-[11px] text-muted-foreground">
+            A previous sponsorship expired before it unlocked. You can try
+            another code if you have one.
+          </Text>
+        </View>
+      )}
+      <Pressable
+        onPress={onToggleOpen}
+        className="flex-row items-center gap-2 py-1 active:opacity-80"
+      >
+        <FontAwesome
+          name={sponsorOpen ? "chevron-down" : "chevron-right"}
+          size={11}
+          color="#64748b"
+        />
+        <Text className="text-sm font-semibold text-muted-foreground">
+          Have a sponsorship code?
+        </Text>
+      </Pressable>
+      {sponsorOpen && (
+        <View className="gap-2 pl-1">
+          <Text className="text-xs text-muted-foreground">
+            Codes from PotKeeper partners or creator kits. Matching is
+            case-insensitive.
+          </Text>
+          <TextInput
+            value={sponsorCode}
+            onChangeText={onSponsorCodeChange}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            placeholder="e.g. PKBOOST-FALCONS-2026"
+            placeholderTextColor={isDarkColorScheme ? "#666" : "#999"}
+            className="rounded-2xl border border-border bg-card px-4 py-3 font-mono text-base"
+            style={{
+              minHeight: 44,
+              color: isDarkColorScheme ? "#FAFAFA" : "#0A0A0F",
+            }}
+          />
+          <Button
+            onPress={onApply}
+            disabled={sponsorBusy || sponsorCode.trim().length < 4}
+            variant="outline"
+            className="w-full"
+          >
+            {sponsorBusy ? (
+              <ActivityIndicator />
+            ) : (
+              <Text className="font-bold">Apply code</Text>
+            )}
+          </Button>
+        </View>
+      )}
+    </View>
+  );
+}
 
 function SummaryCard({ league }: { league: League }) {
   const platformLabel =

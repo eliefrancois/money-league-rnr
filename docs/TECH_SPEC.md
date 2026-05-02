@@ -1496,6 +1496,31 @@ Android has its own gambling-app review process: faster reviews on average, but 
 
 - **Apple Push vs FCM**: Expo Push abstracts both. Confirm we don't need bare Apple Push for any critical path.
 
+## 13.4 Web platform / admin dashboard (deferred to Phase 2)
+
+The mobile app ships first; an authenticated web dashboard for PotKeeper ops is intentionally deferred and bundled with the web build (§13.5 below). When it lands, the dashboard must cover:
+
+**Sponsorship operations**
+- Issue `sponsorship_codes` rows: code string (auto-generated, uppercase), `boost_max_cents`, `match_ratio`, `partner_name`, `partner_contact_email`, `expires_at`, `conditions` JSON. No client-facing seed — until this UI exists, codes are inserted via Supabase dashboard SQL.
+- Status board: `issued` / `redeemed` / `funded` / `forfeited` / `cancelled`, filterable by partner, with the linked `redeemed_for_league_id` and league name.
+- One-click cancel (sets `status = 'cancelled'`, lets `sponsorship-boost-tick` cron forfeit the linked league on next run).
+- Manual fund / forfeit override (bypass the cron's threshold check) for partner exceptions.
+
+**Bar partner CRUD**
+- `bar_partners` insert/edit (name, city, state, logo_url, default_incentive). Today insertions are dashboard-SQL only.
+- League → bar assignment helper that sets `leagues.bar_partner_id` + optional `bar_incentive_text` override.
+
+**Reconciliation + ops tools**
+- Pot ledger viewer per league with running balance vs `league_pot_balance` MV — flags drift.
+- Force `refresh_league_pot_balance` button.
+- Manual force-refund for stuck buy-ins (writes `refund_full` ledger row + Stripe refund).
+- Override commissioner / suspend league.
+- Buy-in dispute counter inspector (rare manual decrement if Stripe webhook misfires).
+- Re-run cron jobs on demand: `auto-finalize-leagues`, `release-reserves`, `sponsorship-boost-tick`.
+
+**Auth / access**
+- Web app must gate by a `profiles.is_staff` flag (column doesn't exist yet — add when building); RLS policies stay closed to clients.
+
 ## 13.5 Known Tech Debt (tracked, not yet scheduled)
 
 - ~~**`SessionProvider` doesn't subscribe to `supabase.auth.onAuthStateChange`**~~ — **RESOLVED Session 3.** `context/index.tsx` now subscribes to `supabase.auth.onAuthStateChange` and pulls initial state via `getSession()`; renders a centered spinner instead of children while hydrating, so consumers never observe a `null` user during the race window. Routing was consolidated into a `RoutingGate` component inside the provider (single auth-state subscriber across the app). The workaround in `sleeper-link.tsx` (manual `getSession()` at call sites) was removed. `Auth.tsx`'s sign-up flow now goes through the provider's `signUp` so we have one place to layer eligibility checks (`APP_FLOW.md` Flow 1 Checkpoint 1) later.
@@ -1521,6 +1546,8 @@ Android has its own gambling-app review process: faster reviews on average, but 
 - **App Store binary name**: "PotKeeper" plain, or "PotKeeper - Fantasy League Pot" for SEO?
 - **Float yield capture**: do we capture interest on cash held in Stripe balance? Stripe doesn't pay interest by default; would require sweeping to Treasury (different product). Defer until material AUM.
 - **Rate limit on join requests**: how do we prevent a spam attack where one bad actor floods 100 leagues with join requests? Probably: 5 active requests per user, reset on transition.
+- **Cron schedule migrations not committed locally**. The `pg_cron` jobs (`potkeeper-auto-finalize`, `potkeeper-release-reserves`, `potkeeper-sponsorship-tick`) were created via SQL editor / MCP rather than versioned migrations. Remote has a `schedule_auto_finalize_cron` migration with no local file (`supabase migration list` shows the gap). The release-reserves and sponsorship-tick `cron.schedule` calls run on the user's Session 4 conversation also have no local file. Capture all three as `supabase/migrations/<ts>_schedule_crons.sql` so a fresh `supabase db reset` reconstructs the full schedule. Low risk today (the live project has them set up correctly), but blocks reproducible local dev.
+- **Migration version drift between local files and remote `schema_migrations`**. Local files use `20260501000001`-style synthetic timestamps; remote has MCP-applied versions stamped at apply-time (`20260501144754` etc.). Pass 2C migrations were repaired (file = `20260502000015/16`, MCP duplicates marked `reverted`); the older 13 still drift. Re-run the same `supabase migration repair --status applied <local> && --status reverted <remote_dup>` pattern next time you touch this area to clean up.
 
 ---
 

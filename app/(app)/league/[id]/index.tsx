@@ -19,7 +19,13 @@ import type { Json, Tables } from "~/lib/database.types";
 import { useColorScheme } from "~/lib/useColorScheme";
 import { supabase } from "~/utils/supabase";
 
-type League = Tables<"leagues">;
+type BarPartnerBrief = Pick<
+  Tables<"bar_partners">,
+  "id" | "name" | "default_incentive" | "logo_url"
+>;
+type League = Tables<"leagues"> & {
+  bar_partners?: BarPartnerBrief | null;
+};
 type LeagueMember = Tables<"league_members">;
 type StandingsSnapshot = Tables<"standings_snapshots">;
 type Payout = Tables<"payouts">;
@@ -99,7 +105,20 @@ export default function LeagueDetailScreen() {
         } else if (!leagueRes.data) {
           setError("League not found or you don't have access.");
         } else {
-          setLeague(leagueRes.data);
+          let leagueRow: League = { ...leagueRes.data, bar_partners: null };
+          const bpId = leagueRow.bar_partner_id;
+          if (bpId != null) {
+            const { data: partner, error: bpErr } = await supabase
+              .from("bar_partners")
+              .select("id, name, default_incentive, logo_url")
+              .eq("id", bpId)
+              .maybeSingle();
+            if (cancelled) return;
+            if (!bpErr && partner) {
+              leagueRow = { ...leagueRow, bar_partners: partner };
+            }
+          }
+          setLeague(leagueRow);
         }
 
         if (membersRes.error) {
@@ -182,6 +201,8 @@ export default function LeagueDetailScreen() {
           commissionerMember={commissionerMember}
           memberCount={members.length}
         />
+
+        <BarPartnerBanner league={league} />
 
         <AuthorizationBanner league={league} />
 
@@ -925,6 +946,7 @@ function PotTab({
           onPayoutsChange={onPayoutsChange}
         />
       )}
+      <SponsorshipPotBanner league={league} />
       <HeroPotCard league={league} isCommissioner={isCommissioner} />
       {payouts.length === 0 ? (
         <PayoutBreakdownCard
@@ -1798,6 +1820,75 @@ function MyPayoutOnboardingCTA({
       </View>
     </View>
   );
+}
+
+// ============================================================================
+// Pass 2C: bar partner (display-only) + sponsorship pot messaging.
+// ============================================================================
+
+function BarPartnerBanner({ league }: { league: League }) {
+  if (league.bar_partner_id == null) return null;
+  const partner = league.bar_partners;
+  if (!partner) return null;
+  const copy =
+    league.bar_incentive_text?.trim() ||
+    partner.default_incentive?.trim() ||
+    null;
+  if (!copy) return null;
+  return (
+    <View className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 gap-1">
+      <Text className="text-[10px] uppercase tracking-wide font-semibold text-amber-800 dark:text-amber-400">
+        Bar partner
+      </Text>
+      <Text className="text-base font-extrabold">{partner.name}</Text>
+      <Text className="text-sm text-muted-foreground">{copy}</Text>
+    </View>
+  );
+}
+
+function SponsorshipPotBanner({ league }: { league: League }) {
+  if (league.sponsorship_status === "none") return null;
+  const max = league.sponsorship_boost_max_cents ?? 0;
+
+  if (league.sponsorship_status === "redeemed_pending") {
+    return (
+      <View className="rounded-2xl border border-sky-500/30 bg-sky-500/5 p-4 gap-1">
+        <Text className="text-[10px] uppercase tracking-wide font-semibold text-sky-800 dark:text-sky-400">
+          Sponsorship boost
+        </Text>
+        <Text className="text-sm text-foreground">
+          Up to {formatCents(max)} from PotKeeper can still unlock once enough
+          members have paid and your code is still valid.
+        </Text>
+      </View>
+    );
+  }
+
+  if (league.sponsorship_status === "funded") {
+    return (
+      <View className="rounded-2xl border border-green-500/30 bg-green-500/10 p-4 gap-1">
+        <Text className="text-[10px] uppercase tracking-wide font-semibold text-green-700 dark:text-green-400">
+          Sponsorship boost
+        </Text>
+        <Text className="text-sm text-foreground">
+          This pot includes a PotKeeper sponsorship credit (up to{" "}
+          {formatCents(max)} per your code rules).
+        </Text>
+      </View>
+    );
+  }
+
+  if (league.sponsorship_status === "forfeited") {
+    return (
+      <View className="rounded-2xl border border-border bg-muted/40 p-3">
+        <Text className="text-xs text-muted-foreground">
+          A sponsorship code did not unlock in time and no longer applies.
+        </Text>
+      </View>
+    );
+  }
+
+  return null;
 }
 
 // ============================================================================
