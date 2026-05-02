@@ -72,57 +72,67 @@ money-league-rnr/
 └── utils/                # storage.ts, supabase.ts
 ```
 
-### Target state (Phase 1)
+### Shipped state (as of Session 9 — May 1, 2026)
 
 ```
-money-league-rnr/        # to be renamed to potkeeper-app
+money-league-rnr/
 ├── app/
-│   ├── (app)/
-│   │   ├── (tabs)/      # NEW: bottom tab nav (home, leagues, browse, profile)
-│   │   │   ├── home.tsx
-│   │   │   ├── leagues.tsx
-│   │   │   ├── browse.tsx
-│   │   │   └── profile.tsx
-│   │   ├── league/
-│   │   │   ├── [id].tsx
-│   │   │   ├── create.tsx
-│   │   │   ├── convert.tsx       # NEW: convert existing fantasy league
-│   │   │   ├── join-request.tsx  # NEW: request to join flow
-│   │   │   ├── pay.tsx
-│   │   │   └── payout.tsx
-│   │   ├── connect/
-│   │   │   ├── sleeper.tsx
-│   │   │   ├── espn.tsx          # ESPNLogin moved here
-│   │   │   └── stripe.tsx        # NEW: Connect Express flow
-│   │   └── settings/
-│   └── (signIn)/
+│   ├── (app)/                           # Authenticated routes (flat, no (tabs) group yet)
+│   │   ├── _layout.tsx                  # Tabs nav: home + explore (placeholder)
+│   │   ├── index.tsx                    # Home: list of leagues + sync buttons
+│   │   ├── explore.tsx                  # Placeholder; Browse target (🔮 Phase 2)
+│   │   ├── settingsModal.tsx            # Lite Profile (sign out, theme)
+│   │   ├── ESPNLogin.tsx                # Dead code; will rebuild post-launch
+│   │   ├── sleeper-link.tsx             # Sleeper import wizard (deep-link only)
+│   │   ├── wallet.tsx                   # Stripe Connect Express (deep-link only)
+│   │   └── league/[id]/
+│   │       ├── _layout.tsx              # Stack with hidden header
+│   │       ├── index.tsx                # League Detail (Standings/Pot/Members tabs)
+│   │       ├── buy-in.tsx               # "Set up the pot" (Screen 5.5)
+│   │       ├── buy-in-pay.tsx           # Pay buy-in (Screen 5.1)
+│   │       ├── receipt.tsx              # Receipt (Screen 5.3)
+│   │       └── authorize.tsx            # Standings authorization (Screen 8.2)
+│   ├── (signIn)/                        # Public auth + eligibility blocks
+│   │   ├── index.tsx                    # Auth (Screen 1.2)
+│   │   ├── eligibility.tsx              # Checkpoint 1 (Screen 1.2.5)
+│   │   ├── underage.tsx                 # 1.2.6a
+│   │   ├── restricted.tsx               # 1.2.6b
+│   │   └── suspended.tsx                # 1.2.6c (post-Stripe billing mismatch)
+│   └── +not-found.tsx
 ├── components/
-│   ├── leagues/
-│   ├── pot/                       # NEW: pot ledger, payout breakdown UI
-│   ├── stripe/                    # NEW: Stripe elements, consent receipts
-│   └── ui/                        # RNR primitives + new (Sheet, Slider, Skeleton)
+│   ├── Auth.tsx
+│   ├── LeagueCard.tsx
+│   ├── ScreenTopBar.tsx                 # Shared header (bypasses iOS 26 Liquid Glass)
+│   ├── TabBarIcon.tsx
+│   ├── TeamInviteCard.tsx
+│   ├── ThemeToggle.tsx
+│   └── ui/                              # RNR / shadcn primitives
 ├── lib/
-│   ├── api/
-│   │   ├── sleeper.ts             # NEW
-│   │   ├── espn.ts                # ported from money-league-api Flask
-│   │   └── yahoo.ts               # Phase 2
-│   └── stripe/                    # NEW: client-side Stripe helpers
+│   ├── database.types.ts                # Generated from Supabase
+│   ├── eligibility.ts
+│   └── ...
 ├── supabase/
 │   ├── functions/
-│   │   ├── stripe-webhook/        # NEW
-│   │   ├── sync-league-standings/ # NEW: scheduled
-│   │   ├── trigger-payout/        # NEW: scheduled + manual
-│   │   ├── sleeper-fetch-leagues/ # NEW
-│   │   ├── espn-fetch-leagues/    # NEW: replaces Flask API
-│   │   └── send-notifications/    # NEW
-│   └── migrations/
-│       ├── 20241009_initial.sql
-│       ├── 20260501_pot_ledger.sql      # NEW
-│       ├── 20260501_join_requests.sql   # NEW
-│       ├── 20260501_visibility.sql      # NEW
-│       ├── 20260501_stripe_connect.sql  # NEW
-│       ├── 20260501_charity.sql         # NEW
-│       └── 20260501_rls_hardening.sql   # NEW
+│   │   ├── auto-finalize-leagues/       # Cron: window expiry + auto-payout
+│   │   ├── eligibility-fail-cleanup/    # Deletes auth user on Checkpoint 1 fail
+│   │   ├── redeem-sponsorship-code/
+│   │   ├── release-reserves/            # Cron: 30-day reserve release
+│   │   ├── retry-payout/                # Commish + recipient self-serve
+│   │   ├── shared/                      # payout.ts, authorization.ts
+│   │   ├── sleeper-import-league/       # (was speced as sleeper-fetch-leagues)
+│   │   ├── sponsorship-boost-tick/      # Cron: daily threshold check
+│   │   ├── start-authorization-window/
+│   │   ├── stripe-account-status/
+│   │   ├── stripe-create-buy-in-session/
+│   │   ├── stripe-create-connect-account/
+│   │   ├── stripe-return/               # In-app browser bridge → potkeeper://
+│   │   ├── stripe-webhook/              # checkout.session.completed,
+│   │   │                                # transfer.failed/reversed,
+│   │   │                                # account.updated, application.deauthorized
+│   │   ├── submit-authorization-vote/
+│   │   ├── sync-league-standings/       # Cron: standings sync
+│   │   └── trigger-payout/              # Commish manual fire
+│   └── migrations/                       # ~18 migrations (Pass 1 → Pass 2C complete)
 └── docs/
     ├── VISION.md
     ├── APP_FLOW.md
@@ -130,10 +140,28 @@ money-league-rnr/        # to be renamed to potkeeper-app
     └── TECH_SPEC.md (this file)
 ```
 
+### Sprint 5 structural targets (still to build)
+
+- **`app/(app)/(tabs)/`** group with `home.tsx`, `leagues.tsx`, `browse.tsx`, `profile.tsx` — currently flat under `(app)/`.
+- **`profile.tsx`** with sub-screens: `activity.tsx` (Screen 10.2), `tax.tsx` (Screen 10.3), `connections.tsx`, `notifications.tsx`. Replaces the current `settingsModal.tsx`.
+- **`league/[id]/payout.tsx`** — Screen 8.3 dedicated payout-in-progress + 8.4/8.5 winner/non-winner celebrations with Lottie.
+- **`get-tax-summary/`** Edge Function — backs the Tax Center screen.
+- **`send-notifications/`** Edge Function + Expo Push token registration — backs the entire push notification matrix.
+- **`league_activity` view** + **Tab 6.1.4 Activity Feed** — aggregated event stream for League Detail.
+
+### Phase 2+ structural targets (intentionally not in v1)
+
+- **`app/(app)/league/create.tsx`** — Flow 4 create-from-scratch (🔮 Phase 2; Sleeper import covers v1)
+- **`app/(app)/league/[id]/join-request.tsx`** + **`join_requests` table** — Phase 2 (`Browse` + paid-join flow)
+- **`app/(app)/connect/`** group — currently `sleeper-link.tsx` and `wallet.tsx` live flat; nest later if it gets unwieldy
+- **`espn-fetch-leagues/`** Edge Function — ESPN integration deprecated; rebuild post-launch on Vault per §4.2
+- **`yahoo.ts`** API client — Phase 2 OAuth
+- **`components/leagues/`, `components/pot/`, `components/stripe/`** sub-folders — hoist UI out of the ~2200 LOC `league/[id]/index.tsx` monolith when it gets refactor-painful
+
 ### Decision: archive `money-league-dev` and fold `money-league-api`
 
 - `money-league-dev` → archived. Older Tamagui prototype, fully superseded.
-- `money-league-api` → ported to a Supabase Edge Function (`espn-fetch-leagues`). The Flask + Python `espn-api` library logic gets translated to Deno + fetch. Eliminates the second deployment and keeps the architecture single-tier.
+- `money-league-api` → planned port to a Supabase Edge Function (originally targeting `espn-fetch-leagues`). The Flask + Python `espn-api` library logic gets translated to Deno + fetch. Eliminates the second deployment and keeps the architecture single-tier. **Status**: ESPN integration is currently dead code in `ESPNLogin.tsx` (home button reads "Coming soon"); the rebuild is post-launch (Phase 2) — Sleeper coverage is sufficient for v1 launch.
 
 ---
 
@@ -691,7 +719,7 @@ The Pot tab `SponsorshipPotBanner` component combines this RPC with the `league_
 
 **Auth**: none required.
 
-**Implementation**: Edge Function `sleeper-fetch-leagues` accepts username, calls Sleeper, normalizes response, returns to client. Edge Function `sync-league-standings` runs as cron, iterates active leagues, fetches matchups, writes to `standings_snapshots`.
+**Implementation**: Edge Function `sleeper-import-league` accepts a Sleeper league ID + the importer's profile, calls Sleeper, writes the `leagues` row + `league_members` rows, and returns `{ league_id, member_count, commissioner_external_user_id }` so the client can route forward (see APP_FLOW Screen 3.2). Edge Function `sync-league-standings` runs as cron, iterates active leagues, fetches matchups, writes to `standings_snapshots`.
 
 ### 4.2 ESPN API (secondary, cookie auth)
 
@@ -1410,10 +1438,10 @@ Each FAQ links to the relevant IRS publication and ends with: *"This isn't tax a
 - Fix `add_member_to_league` RPC SQL bug
 - Schema migration: `pot_ledger`, `payouts`, `join_requests`, `standings_snapshots`, `bypass_codes`, `charity_partners`, `bar_partners`, `restricted_state_waitlist`
 - Profile schema additions: DOB, location_state, billing_state, geo_status, etc.
-- Tab bar restructure: Home / Leagues / Browse / Profile
+- ~~Tab bar restructure: Home / Leagues / Browse / Profile~~ — **deferred to Sprint 5 (May 2026 expanded scope)**. Pass 1 → Pass 2C all shipped without the tab restructure; pulled forward into Sprint 5 because every other Sprint-5 flow assumes it.
 
 ### Sprint 2 (Week 3-4): Sleeper Integration + Eligibility
-- Edge Function `sleeper-fetch-leagues`
+- Edge Function `sleeper-import-league`
 - "From Sleeper" sub-tab + Unconverted League Card
 - Convert Existing League flow (commissioner path) including the eligibility warning screen
 - Suggest PotKeeper flow (member path)
@@ -1514,16 +1542,96 @@ The product promise is "PotKeeper auto-disburses." Pass 2A still required a comm
 | **Sponsorship boost** (`sponsorship_credit`) | **Canonical.** When `sponsorship-boost-tick` credits a league, insert `pot_ledger` (`type='sponsorship_credit'`, idempotent `stripe_event_id` / audit key per §3.11), flip `leagues.sponsorship_status` / code row to `funded`. Materialized view refresh keeps pot totals honest. | **Manual in v1.** Ops moves the matching USD from PotKeeper’s operating reserve into platform balance (Stripe Dashboard or internal runbook) so **ledger sum ↔ Stripe balance** stays reconcilable. **Automate later** (e.g. Balance Transaction–style plumbing per §3.11 Phase 2) when sponsored league volume warrants it. |
 | **Bar incentive** | **No ledger.** Display-only: name, logo URL, `bar_incentive_text` (“$20 bar credit at draft,” etc.). | **None** — no platform payout or transfer for bar promises in v1. |
 
-### Sprint 5 (Week 9-10): Polish + App Store readiness
-- Push notifications wired (including YTD-approaching-1099-K and threshold-reached triggers)
-- Empty states + error handling pass
-- App Store submission prep: screenshots, copy, ToS, privacy policy live
-- Lottie animations integrated (splash + payout celebration)
-- Bar network / browse-near-me and richer bar CMS (if not in Pass 2C)
-- Tax Center screen + `get-tax-summary` Edge Function + Stripe Express deep link
-- `potkeeper.app/tax` FAQ page live
-- Dogfood with real friends-and-family leagues
-- Engage App Store 5.3 specialist for pre-submission review
+### Sprint 5 — Expanded scope (May 1 → July 25 submission, ~12 weeks)
+
+The original 2-week Sprint 5 has been expanded into a 12-week pre-submission program. Reasoning: Pass 1 → Pass 2C completed faster than the spec budgeted, and shipping the trophy moment (Flow 8 winner UI), tax compliance (Flow 10), and notifications uplifts the v1 launch from "survival MVP" to "credible category-defining product." The submit window is fixed at July 20-25 to allow 6 weeks of App Store review buffer before the Sept 5 launch target.
+
+**Build order — flow-by-flow, ordered by App-Store-blocking impact:**
+
+#### Weeks 1-2 (May 1 → May 14): Foundations + reconciliation
+- ~~Docs reconciliation pass~~ ✅ Session 9 (this session)
+- **Tab IA restructure** — `app/(app)/(tabs)/` group with home / leagues / browse (stub) / profile. Sprint 1 deliverable that was deferred. Every other Sprint-5 flow assumes it.
+- **App icon square-fill 1024×1024 export** + **logo SVG sourcing** — App Store blockers; runs in parallel with engineering.
+- **Stripe Connect platform application** — submitted Day 1 of this sprint (~2-4 weeks to approve). **Blocks all production money flow** until approved.
+
+#### Weeks 3-4 (May 15 → May 28): Trophy moment (Flow 8 winner UI)
+- **Screen 8.3 Payout in Progress** — dedicated screen, hero animation, recipient status list, reserve callout
+- **Screen 8.4 Payout Complete (winner)** — Lottie "The Win" celebration, dollar count-up, YTD context line, share-to-social CTA
+- **Screen 8.5 Payout Complete (non-winner)** — empty trophy / "Better luck next year", final-rank card, renewal CTA
+- **Lottie "The Win" animation file** — sourced per `BRAND.md` § Animation & Motion + `TECH_SPEC.md` §9.5
+- **Auto-routing** from `authorize.tsx` → 8.3 → 8.4/8.5 the moment the last approval tips the league to `closed_authorized`
+
+#### Weeks 5-6 (May 29 → June 11): Tax compliance (Flow 10.3 + dependencies)
+- New Edge Function `get-tax-summary` — sums `payouts.amount_cents` per recipient per calendar year
+- New `profiles.ytd_winnings_cents` cached column refreshed on every `transfer.created` webhook
+- **Screen 10.3 Tax Center** — YTD card, $600 threshold progress bar, Stripe Express deep link, FAQ
+- **Screen 10.1 Profile** — YTD card on profile + "Tax Center" row
+- **Screen 8.4 YTD context line** — "$X across N leagues this year" + threshold-reached copy
+- `potkeeper.app/tax` FAQ static page (web work — Vercel-hosted alongside `/stripe-return`, `/buy-in-return`)
+
+#### Weeks 7-8 (June 12 → June 25): Notifications + retention
+- Expo Push token registration at signup + on first launch after upgrade
+- Edge Function `send-notifications` — dispatcher, opted-in users only, deep-link payloads
+- Wire all 15 events from APP_FLOW Push Notifications table:
+  - Member joined / paid / won-week / buy-in reminder
+  - Connect-bank reminder (2 weeks before season end)
+  - Standings authorization needed
+  - Payout sent
+  - Bar event RSVP
+  - Member-suggested + commish-enabled-followup
+  - Sponsorship boost unlocked / code redeemed (formerly deferred Pass 2C `p3`)
+  - YTD approaching 1099-K threshold ($500+)
+  - First payout that crosses $600 / 1099-K available
+- `notifications` user preferences UI (Profile → Notifications)
+
+#### Weeks 9-10 (June 26 → July 9): Activity surfaces + polish tabs
+- **Screen 10.2 Activity / Transaction History** — filterable transaction list, expandable receipts, PDF download
+- **Tab 6.1.4 Activity Feed** + `league_activity` view backing it
+- **Tab 6.1.5 Rules** — read-only league config + "Edit rules" commissioner gate (pre-season only in v1)
+- **Lottie "Seal the Pot" splash animation** — first-launch only, fall back to static logo
+- **Empty states + error handling pass** — every list / form / data-fetch state has a polished empty + error variant
+
+#### Weeks 11-12 (July 10 → July 25): Pre-flight + submit
+- **5.3 specialist pre-submission review** — engaged early July
+- **Lawyer-drafted ToS + privacy policy delivery** (mid-July). Replaces templated v1.
+- **Geo-block VPN testing** — confirm Checkpoint 1 + Checkpoint 2 enforcement from VA / NJ / WA / NV / etc. via Wireguard
+- **App Store screenshots + copy** — six hero screens at iPhone 15 Pro size
+- **Privacy nutrition label** + App Store description with state restriction disclosure
+- **TestFlight friends-and-family dogfood cohort** — real money, real Sleeper leagues, ~20 users
+- **Submit July 20-25**
+
+#### Weeks 13-19 (July 25 → Sept 10): Review + buffer
+- 2-3 expected rejection-iteration cycles (5-10 days each)
+- Critical bug fixes from FF dogfood
+- Web app at `potkeeper.app` for browsers + Android (Expo Router web export — runs in parallel as background work)
+- Final marketing push: Reddit / X launch, FF Expo content drops
+- **LIVE Sept 5** → NFL kickoff Sept 10
+
+### Sprint 5 stretch backlog (pull from this if tracking ahead of schedule)
+
+In priority order — these are nice-to-have but **do not** expand scope mid-flight:
+
+1. **SetupIntent dedicated screen (Screen 5.0)** + saved payment methods for second-buy-in polish
+2. **Refund logic for restricted-state mismatches** — auto-refund instead of ops-manual via Stripe Dashboard
+3. **Stripe processing-fee accounting** — actually wire `leagues.fee_payer` differentiating ledger entries
+4. **Reconciliation cron** — hourly Stripe ↔ DB drift check
+5. **Refund webhook events** — `charge.refunded`, `charge.dispute.created` handling
+6. **Dispute resolution flow** for standings authorization (Screen 8.2 dispute branch beyond freeze)
+7. **`join_requests` table + paid-join flow** — opens Browse / public-league joining for Phase 2 prep
+8. **Custom payout split slider UI** — only if a real user asks
+9. **Cron-driven authorization window expiry** — supplements the cron we already have
+
+### Hard cuts — NOT in v1 launch
+
+These are tempting and partially spec'd. **Do not touch them in Sprint 5:**
+
+- **Flow 4 — Create from scratch** (Sleeper import covers v1)
+- **Flow 9 — Browse / Bar Leagues / Map View / Bar Partner Page**
+- **Admin dashboard / web platform** (§13.4, deferred to Phase 2)
+- **Yahoo OAuth** (Phase 2)
+- **Charity partners** (already deferred Pass 2C; `payout_charity` enum stays unused)
+- **ESPN integration rebuild** (post-launch — dead code stays dead)
+- **Dev-only commissioner override on Last Call Dynasty** (`TECH_SPEC.md` §13.5) — revert before TestFlight goes wider than founders
 
 ---
 
@@ -1663,4 +1771,4 @@ The mobile app ships first; an authenticated web dashboard for PotKeeper ops is 
 
 ---
 
-*Last updated: May 1, 2026 (Session 9 — Pass 2C completion + auto-link trigger + sponsorship view RPC + league invite affordances). Updated as build decisions land.*
+*Last updated: May 1, 2026 (Session 9 — Pass 2C completion + auto-link trigger + sponsorship view RPC + league invite affordances; expanded 12-week Sprint 5 plan + codebase layout reconciled to shipped flat structure). Updated as build decisions land.*

@@ -2,6 +2,19 @@
 
 > Use this doc to generate Claude Design / Figma mocks. Every screen, every state, every interaction. Phase 1 (v1 launch) is the focus; Phase 2 and Phase 3 screens are sketched at the end.
 
+## Status legend
+
+Every screen and flow header carries one of these tags so designers, agents, and future-me can see at a glance what's real:
+
+| Tag | Meaning |
+|---|---|
+| ✅ **Shipped** | Implemented, live on `dev`, and dogfoodable today |
+| 🟡 **Partial** | Some screens / states implemented; the rest are in the Sprint 5 build queue |
+| 🚧 **Sprint 5** | In the v1 launch build (May 1 – July 25, 2026 submission). Designers can mock; engineering has not started yet. |
+| 🔮 **Phase 2** | Out of v1 scope. Sketches retained for context but not actively designed. Build target is Q4 2026 or later, after Sept 5 launch. |
+
+Anything unmarked is assumed ✅ Shipped (legacy of the doc — being backfilled session by session).
+
 ---
 
 ## For Claude Design / AI Mocking Tools (read this first)
@@ -16,14 +29,16 @@
 
 **If asked to generate one screen, default to one of these six hero screens** (described in detail below):
 
-| # | Screen | Why it sells the product |
-|---|---|---|
-| 1 | **Home with leagues** (Screen 2.2) | First impression for returning users — money + leagues at a glance |
-| 2 | **Leagues tab → From Sleeper sub-tab** (Screen 3.1.c) | The killer onboarding visual — "your existing leagues, with one tap to convert" |
-| 3 | **Convert Existing League** (Screen 3.2) | The 60-second league setup — pre-filled from Sleeper, three controls |
-| 4 | **Pot tab during season** (Tab 6.1.2) | The iconic in-season screen — pot, payout breakdown, sponsorship banner if applicable |
-| 5 | **Standings authorization with countdown** (Screen 8.2) | The screenshot for Reddit — locks PotKeeper as a category-defining product |
-| 6 | **Payout complete — winner** (Screen 8.4) | The trophy moment — Lottie celebration + the dollar count-up |
+| # | Screen | Status | Why it sells the product |
+|---|---|---|---|
+| 1 | **Home with leagues** (Screen 2.2) | 🟡 Partial | First impression for returning users — money + leagues at a glance |
+| 2 | **Leagues tab → From Sleeper sub-tab** (Screen 3.1.c) | 🟡 Partial — exists inside `sleeper-link.tsx` wizard, not yet a tab | The killer onboarding visual — "your existing leagues, with one tap to convert" |
+| 3 | **Set up the pot** (Screen 5.5 — buy-in setup) | ✅ Shipped | The 60-second league setup — buy-in, payout split, sponsorship code |
+| 4 | **Pot tab during season** (Tab 6.1.2) | ✅ Shipped | The iconic in-season screen — pot, payout breakdown, sponsorship projected-boost banner |
+| 5 | **Standings authorization with countdown** (Screen 8.2) | ✅ Shipped | The screenshot for Reddit — locks PotKeeper as a category-defining product |
+| 6 | **Payout complete — winner** (Screen 8.4) | 🚧 Sprint 5 | The trophy moment — Lottie celebration + the dollar count-up |
+
+Designers: prefer ✅ Shipped screens for product mockups (we know they're stable). 🚧 Sprint 5 screens are open for design exploration *now* — engineering hasn't started, your mocks influence the implementation.
 
 **Color tokens to use everywhere** (don't substitute):
 
@@ -107,13 +122,25 @@ Already installed: Avatar, Button, Card, Progress, Tabs, Tooltip. Need to add: S
 
 ## Information Architecture
 
-### Tab Bar (bottom, 4 tabs)
+### Tab Bar — current shipped state ✅ vs target 🚧
+
+**Shipped today** (2 visible tabs + several `href: null` routed-out screens):
+1. **Home** ✅ — list of your leagues, sync buttons (Sleeper / ESPN / Yahoo), gear → settings modal
+2. **Explore** ✅ — placeholder, Phase 2 target (becomes Browse)
+
+Routed out of the tab bar via `href: null` (deep-link-only):
+- `sleeper-link.tsx` — Sleeper import wizard
+- `league/[id]` — League Detail (with its own internal Stack)
+- `wallet.tsx` — Stripe Connect / payouts
+- `settingsModal.tsx` — Profile lite
+
+**Sprint 5 target — restructure to 4 tabs** 🚧 *(Sprint 1 deliverable that was deferred; pulled forward to Sprint 5 because every other Sprint-5 flow assumes it):*
 1. **Home** — feed, summary, activity, quick actions
 2. **Leagues** — your leagues catalog with platform sub-tabs (active PotKeeper leagues + your unconverted Sleeper/ESPN/Yahoo leagues)
-3. **Browse** — discover leagues to join (near me, bar leagues, public)
-4. **Profile** — settings, connections, transaction history
+3. **Browse** 🔮 — Phase 2 surface; Sprint 5 ships the tab as a stub so the IA is in place
+4. **Profile** — settings, connections, payout method, **Activity (transaction history)**, **Tax Center**
 
-Wallet is folded into Profile under "Activity" — money context lives on each league page anyway, no need for a dedicated tab.
+**Wallet placement**: today `wallet.tsx` is its own deep-link-only route triggered by Flow 7. The Sprint 5 restructure folds wallet status into the Profile tab as a row ("Payout method · Bank •••1234"), but the actual onboarding flow stays at `wallet.tsx` to preserve the deferred-KYC product principle (settings doesn't surface a "Set up payouts" CTA until the user has winnings owed).
 
 ### Modal/Sheet Patterns
 - **Bottom sheets** for: confirmations, quick actions, info popovers
@@ -196,16 +223,18 @@ Standard auth screen. Supabase auth supports email/password, Apple, Google, Disc
 - If state ∈ restricted list: hard stop screen (Screen 1.2.6b) with email capture
 - If both pass: write `profiles.date_of_birth`, `profiles.location_state`, set `geo_status = 'declared'`, proceed to Screen 1.3
 
-### Screen 1.2.6a — Underage Block
+### Screen 1.2.6a — Underage Block ✅
 
 **Layout:**
 - Centered illustration (gentle, not punitive)
 - Heading: "PotKeeper is 18+"
 - Subtitle: "PotKeeper requires you to be 18 or older to use the app. Come back when you're old enough — fantasy leagues will still be here."
 - Single button: "I understand"
-- Tap → kicked back to Welcome screen, profile not created
+- Tap → kicked back to Welcome screen, profile + auth user deleted
 
-### Screen 1.2.6b — Restricted State Block
+**Server-side behavior**: the `eligibility-fail-cleanup` Edge Function validates the user's JWT and calls `auth.admin.deleteUser`, which cascades to `profiles`. This is critical — without it, Supabase's "user already exists" response on retry would silently fail (signUp returns an empty `identities` array for known emails), burning the email forever. See `TECH_SPEC.md` §13.5 (resolved Session 3).
+
+### Screen 1.2.6b — Restricted State Block ✅
 
 **Layout:**
 - Centered illustration (subdued, hopeful)
@@ -215,7 +244,20 @@ Standard auth screen. Supabase auth supports email/password, Apple, Google, Disc
 - Primary button: "Notify me"
 - Secondary text link: "Why not?" → opens info sheet explaining state-by-state legal landscape
 - Tap notify → write to `restricted_state_waitlist` table, show confirmation toast, kick back to Welcome
-- Profile is NOT created; email captured separately
+- Profile + auth user are deleted (same `eligibility-fail-cleanup` mechanism as 1.2.6a); the waitlist email row persists separately so we can email them when their state opens up.
+
+### Screen 1.2.6c — Suspended (post-Stripe billing mismatch) ✅
+
+**Trigger**: Reachable from Checkpoint 2 (Stripe billing state ≠ allowed list — see Screen 5.0.1) or webhook reconciliation (Checkpoint 3). User declared an eligible state at signup but their card billing address is restricted, OR their card billing later moved to a restricted state.
+
+**Layout** (lives at `(signIn)/suspended.tsx`):
+- Centered illustration (subdued)
+- Heading: "We can't verify your account"
+- Body explaining the mismatch + that funds are held safely while ops resolves
+- Single button: "Contact support" (mailto)
+- Tertiary link: "Sign out"
+
+**Server-side behavior**: unlike 1.2.6a/b, the auth user is *not* deleted — `geo_status='suspended'` is set instead. The user keeps their account so ops can audit + manually refund any in-flight buy-ins. Auto-refund of restricted-state mismatches is a Sprint 5 / Pass 2 deferred item (see `TECH_SPEC.md` §12 Sprint 3 Pass 1 simplifications).
 
 ### Screen 1.3 — Welcome / Connect Your Fantasy Account
 
@@ -332,9 +374,13 @@ The actual WebView is system-styled.
 
 ---
 
-## Flow 3: Leagues Tab (THE KILLER FLOW)
+## Flow 3: Leagues Tab (THE KILLER FLOW) 🟡 Partial
 
-### Screen 3.1 — Leagues Tab Overview
+**Shipped today**: import wizard at `app/(app)/sleeper-link.tsx` covers the meat of Screens 3.1.c, 3.4 (suggest), and 3.5 (success). The Leagues tab itself is 🚧 Sprint 5 — today users see leagues on the Home tab.
+
+**Sprint 5 work**: introduce the dedicated Leagues tab with Active / Past / From Sleeper / From ESPN sub-tabs (Screens 3.1.a – 3.1.d), and the eligibility warning gate (Screen 3.1.5). The actual conversion / setup screens (3.2 / 3.3) have already been split across `sleeper-link.tsx` (import) → League Detail → buy-in.tsx (setup) per the shipped product; this section documents that split.
+
+### Screen 3.1 — Leagues Tab Overview 🚧 Sprint 5
 
 **Purpose**: The catalog of all your leagues across platforms. Primary place to manage active PotKeeper leagues *and* convert existing fantasy leagues.
 
@@ -349,18 +395,20 @@ The actual WebView is system-styled.
 - Each pill has a count badge: "Active (3)", "From Sleeper (5)"
 - Below pills: scrollable list of league cards based on selected pill
 
-### Screen 3.1.a — Active Sub-tab
+### Screen 3.1.a — Active Sub-tab 🚧 Sprint 5
 
 - List of PotKeeper League Cards (full component above)
 - Sort options (top right): Most active / Newest / Highest pot
-- Empty state: "No active leagues. Add PotKeeper to a Sleeper league →" or "Create one →"
+- Empty state: "No active leagues. Add PotKeeper to a Sleeper league →"
 
-### Screen 3.1.b — Past Sub-tab
+### Screen 3.1.b — Past Sub-tab 🚧 Sprint 5
 
 - List of completed leagues with final standings inline
 - Each card has "Run it back next season" CTA
 
-### Screen 3.1.c — From Sleeper Sub-tab
+### Screen 3.1.c — From Sleeper Sub-tab ✅ Shipped (as wizard step)
+
+Shipped today inside `sleeper-link.tsx` rather than as a tab. The Sprint 5 restructure moves this same UI under the Leagues tab, no functional changes required.
 
 - Top: "Your Sleeper leagues" + small "Last refreshed 2m ago • Refresh" link
 - List of Unconverted League Cards
@@ -379,12 +427,14 @@ This prevents duplicate-import attempts and gives non-commissioner members a one
 
 After import, the success step inside the Sleeper-link wizard surfaces a collapsed **"Have a sponsorship code?"** disclosure (commissioner-only) that routes the user into the buy-in `SponsorshipSetupSection` rather than running its own redemption form. See `TECH_SPEC.md` §3.11.
 
-### Screen 3.1.d — From ESPN Sub-tab
+### Screen 3.1.d — From ESPN Sub-tab 🔮 Phase 2
+
+ESPN integration was deprecated post–Sept 2025 and is queued for a clean rebuild on Vault + Edge Functions per `TECH_SPEC.md` §4.2. Out of v1 scope.
 
 - Same pattern as Sleeper
 - If cookies expired: top banner "ESPN session expired. Reconnect to see leagues." → opens WebView re-auth
 
-### Screen 3.1.5 — Eligibility Warning (NEW: shown before Screen 3.2)
+### Screen 3.1.5 — Eligibility Warning 🚧 Sprint 5 (shown before Screen 3.2)
 
 **Trigger**: Tap "+ Add PotKeeper" on an unconverted league card where you're the commissioner. **Before** the main convert flow, we show a one-time eligibility warning.
 
@@ -412,37 +462,36 @@ After import, the success step inside the Sleeper-link wizard surfaces a collaps
 - Tap "Not now" → log `geo_block_abandoned` event → return to Leagues tab
 - This warning shown only once per source-platform league (don't re-prompt if commissioner returns)
 
-### Screen 3.2 — Convert Existing League (commissioner path)
+### Screen 3.2 — Import League (commissioner path) ✅ Shipped
 
 **Trigger**: After acknowledging the eligibility warning (Screen 3.1.5).
 
-**Purpose**: The fastest path to a working PotKeeper league. Most fields pre-filled from source platform.
+**Purpose**: Move the league row + members onto PotKeeper. **Lightweight** by design — the heavy lifting (buy-in, payout split, sponsorship code) lives in Screen 5.5 *Set up the pot* once the league exists. This separation matches the shipped behavior of `sleeper-import-league` Edge Function and makes the import idempotent and re-runnable.
 
-**Layout:**
-- Top bar: back + "Add PotKeeper to [League Name]" + step indicator
+**Layout** (lives inside `sleeper-link.tsx` post-lookup):
+- Top bar: back + "Add to PotKeeper"
 - Pre-filled summary card (read-only):
-  - League name (editable inline)
+  - League name (editable inline at this step)
   - Platform: Sleeper (with logo)
   - Members found: 12 (with avatar stack)
   - Sport: NFL '26
   - Status: Pre-season / In-season / Complete
-- "We just need a few details" heading
-- Buy-in input (currency formatted, presets: $25 / $50 / $100 / $200 / $500)
-- Payout split selector (presets + custom, same as Flow 4)
-- Optional charity toggle (collapses if off)
-- Fee handling toggle: "Members cover the 2.5% fee" / "I'll cover it"
-- **Sponsorship code field** (collapsed by default, "Have a sponsorship code?" disclosure):
-  - Input: monospace text field, auto-uppercases as you type (e.g., `PKBOOST-FALCONS-2026`)
-  - Validate button: "Apply"
-  - On valid code: green callout *"Sponsored: PotKeeper will match buy-ins up to $X. Boost unlocks once 80% of members pay in by Sept 8."*
-  - On invalid code: red inline error *"Code not recognized, expired, or already used."*
-  - On already-redeemed code: red inline error *"This code has already been used for another league."*
-  - See `TECH_SPEC.md` §3.11 for backend logic
-- Live preview card: "Total pot: $X • 1st: $Y • 2nd: $Z • Charity: $C"
-  - If sponsorship code applied and valid: extra line *"Sponsorship boost: +$X (unlocks at 80% paid)"*
-- Sticky bottom: "Continue → Invite members"
+- Body: *"We'll bring this league over to PotKeeper. You can configure the pot, payout split, and any sponsorship code on the next screen."*
+- Sticky bottom: "Add to PotKeeper" → calls `sleeper-import-league` Edge Function
 
-### Screen 3.2.5 — Source-Platform Commissioner is Restricted (edge case)
+**Server-side**:
+- Creates `leagues` row with `platform='sleeper'`, `commissioner_external_user_id`, `status='pre_season'/'in_season'/'complete'`
+- Creates `league_members` rows for every roster from Sleeper, with `linked_profile_id` set on the importer's row, NULL on others
+- The `platform_identities_auto_link` trigger (`TECH_SPEC.md` §3.12) backfills `linked_profile_id` for any *other* members who already had PotKeeper accounts
+- Returns `{ league_id, member_count, commissioner_external_user_id }` so the wizard can route forward
+
+**Success branch** → Screen 3.5 (Convert Success). Setup happens in Screen 5.5.
+
+### Screen 3.2 — Convert Existing League (legacy single-screen design) 🔮 Superseded
+
+The original spec collapsed import + buy-in setup into one screen with sponsorship code field, payout split selector, charity toggle, and fee handling toggle inline. Shipped product splits this into 3.2 (import) → 5.5 (set up the pot). The single-screen design is retained here for context but is **not the build target** — designers should mock 3.2 and 5.5 as separate screens.
+
+### Screen 3.2.5 — Source-Platform Commissioner is Restricted (edge case) 🚧 Sprint 5
 
 **Trigger**: If at the moment of conversion we detect the commissioner's own profile has `geo_status = 'suspended'` (or they're trying to convert from a restricted state somehow). This shouldn't normally happen since restricted-state users can't sign up at Checkpoint 1 — but defense-in-depth.
 
@@ -454,24 +503,19 @@ After import, the success step inside the Sleeper-link wizard surfaces a collaps
 - Single button: "Got it"
 - Tertiary text link: "Send my league a note" → pre-filled message that explains the situation, can be sent via Sleeper DM
 
-### Screen 3.3 — Invite Existing Members
+### Screen 3.3 — Invite Members ✅ Shipped (folded into League Detail Members tab)
 
-**Purpose**: Notify the 12 members from the Sleeper league that their commissioner just turned it into a PotKeeper league. Get them to download the app and onboard.
+**Original design**: a wizard step shown immediately after conversion that bulk-invited the 12 members.
 
-**Layout:**
-- Top bar: back + "Invite your league" + step indicator
-- Heading: "Time to bring your league over"
-- Pre-populated list of 12 members from the source platform:
-  - Avatar + Sleeper username + team name
-  - Status pill: "Not on PotKeeper yet" / "Already on PotKeeper" (we cross-reference Sleeper usernames against our user table)
-- Bulk invite options:
-  - "Generate invite link" → big copy button
-  - "Send to all" → opens system share to Sleeper league chat / Discord / SMS / email
-- Per-member action: "Send DM" if they're already on PotKeeper
-- Tertiary: "Skip and invite later"
-- Sticky bottom: "Done"
+**Shipped reality** (better UX): inviting is now an **always-available, per-row affordance on League Detail → Members tab** (Tab 6.1.3). The reasons:
 
-### Screen 3.4 — Suggest PotKeeper (member path)
+- The auto-link trigger (`TECH_SPEC.md` §3.12) means most invites happen passively — when a member signs up later and verifies their Sleeper handle, they're auto-joined with no commissioner action required.
+- The per-row Invite Share pill on the Members tab covers the active-invite case for any member who hasn't joined yet, on the commissioner's schedule (not jammed into a wizard step).
+- The header card's commissioner Invite button covers the inverse case — when a non-commissioner member is on PotKeeper but their commissioner isn't.
+
+The bulk "Send to all" + "Generate invite link" options remain a Sprint 5 polish item — adding them to the Members tab header makes sense, but per-row affordances cover 90% of the real flow today. Avoid spam-pattern bulk-share buttons in v1.
+
+### Screen 3.4 — Suggest PotKeeper (member path) ✅ Shipped (folded into Sleeper sub-tab)
 
 **Trigger**: Tap "Suggest to [Commish Name]" on an unconverted league card where you're a member.
 
@@ -491,23 +535,33 @@ After import, the success step inside the Sleeper-link wizard surfaces a collaps
 - Tertiary text: "We won't spam them — only this one message goes through."
 - Sticky bottom: "Send"
 
-### Screen 3.5 — Convert Success
+### Screen 3.5 — Import Success ✅ Shipped
 
-- Confetti animation
-- "[League Name] is now on PotKeeper"
-- Recap card: pot target, payout breakdown, members invited, members joined so far
-- Two CTAs:
-  - Primary: "Pay your buy-in →" (jumps to Flow 5)
-  - Secondary: "View league" → Flow 6 League Detail
-- Tertiary: "Done"
+Shipped reality is lighter than the original spec — confetti is reserved for payout-complete (Screen 8.4) per BRAND.md motion guidance.
+
+**Layout** (final step of `sleeper-link.tsx`):
+- Subtle success animation (checkmark)
+- "[League Name] is on PotKeeper"
+- Recap card: members imported, your role (commish / member), platform
+- **"Have a sponsorship code?"** disclosure (commissioner-only) → routes into Screen 5.5 *Set up the pot* with the sponsorship section auto-expanded
+- Primary CTA: "Set up the pot →" (commissioner) or "View league →" (member) — both route to League Detail
+- Tertiary: "Done" / "Import another league"
+
+The "Pay your buy-in" CTA from the original spec doesn't appear here because the buy-in doesn't exist yet — the commissioner sets it up in Screen 5.5 first.
 
 ---
 
-## Flow 4: Create a League from Scratch (multi-step)
+## Flow 4: Create a League from Scratch (multi-step) 🔮 Phase 2
 
-5-step flow. Use a top progress bar (5 dots) to show position. Used when there's no existing fantasy league to convert from (e.g., a new league forming, or a private league not yet on a platform).
+**Out of v1 scope.** The Sleeper-import path covers ~95% of leagues — users come to PotKeeper *with* a fantasy league, not without one. Building a full create-from-scratch wizard means duplicating Sleeper's roster mechanics inside our app, which we don't want to own.
 
-### Screen 4.1 — Step 1: Basics
+The original 5-step design is preserved below for Phase 2 context but is **not on the v1 build path**. Sprint 5 instead invests that effort into Flow 8 (payout celebration) and Flow 10 (Tax Center) where the user value is denser.
+
+If a v1 user genuinely needs to start from scratch, they should create a free Sleeper league first, then convert. That guidance lives in onboarding (Screen 1.3 → "Don't have a Sleeper account? Get one →").
+
+---
+
+### Screen 4.1 — Step 1: Basics 🔮 Phase 2
 
 - Top bar: back + "Create League" + step indicator "1 of 5"
 - "Let's start with the basics" heading
@@ -517,7 +571,7 @@ After import, the success step inside the Sleeper-link wizard surfaces a collaps
 - If a platform is selected: optional "Pull from existing league on [platform]" picker (this is a shortcut into the conversion flow above)
 - Sticky bottom: "Continue" (disabled until name + sport selected)
 
-### Screen 4.2 — Step 2: Buy-in & Members
+### Screen 4.2 — Step 2: Buy-in & Members 🔮 Phase 2
 
 - "How much and how many?" heading
 - Buy-in input (large, currency formatted): "$" with stepper (+/- $5)
@@ -529,7 +583,7 @@ After import, the success step inside the Sleeper-link wizard surfaces a collaps
   - "Each member pays: $XX (incl. fees)"
   - "After platform fee: $XXX disbursed"
 
-### Screen 4.3 — Step 3: Payout Split
+### Screen 4.3 — Step 3: Payout Split 🔮 Phase 2
 
 - "How should winnings be split?" heading
 - Three preset buttons:
@@ -540,7 +594,7 @@ After import, the success step inside the Sleeper-link wizard surfaces a collaps
 - Live preview: 1st place gets $X, 2nd gets $Y, etc.
 - Validator: must total 100%, show error if off
 
-### Screen 4.4 — Step 4: Charity (optional)
+### Screen 4.4 — Step 4: Charity (optional) 🔮 Phase 2
 
 - "Want to give back?" heading
 - Toggle: "Route part of the pot to charity"
@@ -552,7 +606,7 @@ After import, the success step inside the Sleeper-link wizard surfaces a collaps
   - Preview update: "1st place: $X, ..., Charity: $Y"
 - Bottom: "Skip" link if they don't want this
 
-### Screen 4.5 — Step 5: Review & Invite
+### Screen 4.5 — Step 5: Review & Invite 🔮 Phase 2
 
 - "Looks good?" heading
 - Full league summary card:
@@ -560,11 +614,7 @@ After import, the success step inside the Sleeper-link wizard surfaces a collaps
   - Buy-in, total pot, payout split breakdown
   - Charity if applicable
 - Edit pencil icon next to each section to jump back
-- **Sponsorship code field** (collapsed by default, same UX as Screen 3.2):
-  - Disclosure row: "Have a sponsorship code?"
-  - On expand: monospace input + Apply button
-  - On valid code: green callout with boost amount and unlock conditions
-  - See `TECH_SPEC.md` §3.11 for validation logic
+- **Sponsorship code disclosure**: "Have a sponsorship code?" → routes to the buy-in `SponsorshipSetupSection` (the canonical redemption surface, same as Convert and Pot tab affordances)
 - "Invite members" section:
   - QR code (big, scannable)
   - Invite link with copy button
@@ -572,7 +622,7 @@ After import, the success step inside the Sleeper-link wizard surfaces a collaps
   - "Share via..." button (system share sheet)
 - Sticky bottom: "Create League"
 
-### Screen 4.6 — Success: League Created
+### Screen 4.6 — Success: League Created 🔮 Phase 2
 
 - Success animation (checkmark, confetti restrained)
 - "Your league is live"
@@ -585,13 +635,47 @@ After import, the success step inside the Sleeper-link wizard surfaces a collaps
 
 ---
 
-## Flow 5: Pay Buy-in (Stripe Checkout)
+## Flow 5: Pay Buy-in (Stripe Checkout) ✅ Shipped
 
-### Screen 5.0 — Verify Billing (NEW: Checkpoint 2, first paid action only)
+### Screen 5.5 — Set up the pot (commissioner buy-in setup) ✅ Shipped
+
+**Trigger**: League exists (just imported from Sleeper or already on PotKeeper) but has no `buy_in_cents` set yet. Commissioner taps "Set up the pot" from League Detail or from the Sleeper-import success step.
+
+**Why this is Screen 5.5 not 4.5 / 3.2**: shipped product separates *importing the league* from *configuring the pot*. This screen owns the configuration. Members can't see this screen — they see `PotUnconfiguredCard` ("Your commissioner hasn't set up the pot yet") on the Pot tab while they wait.
+
+**Layout** (`app/(app)/league/[id]/buy-in.tsx`, fronted by shared `ScreenTopBar`):
+
+- Top bar: back chevron + "Set up the pot" + theme toggle
+- **Buy-in section**:
+  - Currency-formatted input ($ stepper)
+  - Preset chips: $25 / $50 / $100 / $200 / $500
+- **Payout split section** — three preset cards, single-select:
+  - **Standard** — 60 / 30 / 10 (default)
+  - **Winner takes all** — 100
+  - **Top half** — first half of league split equally
+  - (No custom slider in v1 — see `TECH_SPEC.md` §13.5 deferred item)
+- **Fee handling section**:
+  - Toggle: "Members cover the 2.5% fee" (default) / "I'll cover it" (sets `leagues.fee_payer`)
+  - *(Stripe processing-fee accounting is itself deferred per §12 Sprint 3 simplification — flag is wired but the ledger entries don't differentiate yet)*
+- **Sponsorship code section** (`SponsorshipSetupSection`, collapsed by default):
+  - Disclosure: "Have a sponsorship code?"
+  - On expand: monospace text field (auto-uppercases), "Apply" button
+  - On valid code: green callout with partner name, match ratio, cap, and threshold
+  - On invalid: red inline error mapped from `redeem-sponsorship-code` Edge Function error codes (`invalid_code` / `expired` / `already_redeemed` / etc. — see Pass 2C / hardening item H1)
+  - **This is the canonical sponsorship redemption surface.** Every other "Have a sponsorship code?" affordance in the app (Pot tab, Sleeper-import success, future Convert / Create flows) deep-links here rather than running its own redemption form.
+- **Live preview card** (sticky above the bottom CTA):
+  - "Total pot when everyone pays: $X"
+  - Per-rank payout breakdown
+  - If sponsorship applied: "+$Y projected boost (unlocks at Z% paid by [date])"
+- Sticky bottom: "Save and open buy-in" → writes `buy_in_cents`, `payout_split`, `fee_payer` to `leagues`, then routes to Screen 5.1 if the commissioner hasn't paid yet, or back to League Detail if they have.
+
+### Screen 5.0 — Verify Billing (Checkpoint 2, first paid action only) 🟡 Partial — deferred dedicated screen
 
 **Trigger**: First time a user attempts to pay any buy-in or join any paid league. This screen is shown **once per account**; subsequent buy-ins skip directly to Screen 5.1.
 
 **Purpose**: Confirm billing address state matches eligibility. Catches the user who declared one state at signup but has billing in a restricted state.
+
+**Shipped reality**: Pass 1 simplified this — billing is collected inline in Stripe Checkout (Screen 5.2) rather than on its own SetupIntent screen. Same Checkpoint 2 enforcement, fewer screens. The dedicated screen is a Sprint 5 polish add when we wire saved payment methods for second-buy-in flow. See `TECH_SPEC.md` §12 Sprint 3 Pass 1 simplifications.
 
 **Layout:**
 - Top bar: back + "One quick check"
@@ -612,7 +696,7 @@ After import, the success step inside the Sleeper-link wizard surfaces a collaps
 - If state ∈ allowed list → save payment method, set `geo_status = 'verified'`, set `setup_intent_completed_at = now()`, advance to Screen 5.1
 - If state ∈ restricted list → show Screen 5.0.1 (suspension)
 
-### Screen 5.0.1 — Billing State Mismatch (suspension)
+### Screen 5.0.1 — Billing State Mismatch (suspension) ✅ Shipped (as Screen 1.2.6c)
 
 **Layout:**
 - Centered illustration (subdued)
@@ -625,7 +709,7 @@ After import, the success step inside the Sleeper-link wizard surfaces a collaps
 - Tertiary text link: "Sign out"
 - Logic: set `geo_status = 'suspended'`, log incident, send ops notification
 
-### Screen 5.1 — Pay Buy-in
+### Screen 5.1 — Pay Buy-in ✅ Shipped
 
 **Trigger**: User has completed Screen 5.0 verification (or completed it on a prior buy-in). Now they're paying for an actual league.
 
@@ -642,11 +726,11 @@ After import, the success step inside the Sleeper-link wizard surfaces a collaps
 - Required checkbox: "I authorize this charge for entry into [League Name]. I understand winnings will be paid out at season end based on final standings."
 - Sticky bottom: "Pay $51.75" (button disabled until checkbox checked)
 
-### Screen 5.2 — Stripe Checkout (hosted)
+### Screen 5.2 — Stripe Checkout (hosted) ✅ Shipped
 
 Stripe-hosted, in-app browser. Pre-filled with email and saved payment method. Apple Pay / Google Pay surfaced first. Faster than the SetupIntent flow because card is already saved.
 
-### Screen 5.3 — Receipt / Welcome to League
+### Screen 5.3 — Receipt / Welcome to League ✅ Shipped
 
 - Success animation
 - "You're in" heading
@@ -663,27 +747,28 @@ Stripe-hosted, in-app browser. Pre-filled with email and saved payment method. A
 
 ---
 
-## Flow 6: League Detail (during season)
+## Flow 6: League Detail (during season) 🟡 Partial
 
-### Screen 6.1 — League Overview
+### Screen 6.1 — League Overview ✅ Shipped (header + 3 of 5 tabs)
 
 **Purpose**: The main screen members open all season. Tab-based.
 
-**Top section (always visible above tabs):**
+**Top section (always visible above tabs)** ✅:
 - League name + edit/settings gear (commissioner only)
 - Bar sponsor banner if applicable: "Sponsored by [Bar Name]" with logo and incentive offer (e.g., "Free first round at draft party" or "$20 bar credit included")
-- Stats row: Pot ($), Week (X of Y), Your rank (#X), **Members as a fraction (joined/total) with a colored dot** (green = all members linked, amber = ≥50% linked, red = <50% linked) and an "on PotKeeper" sub-label. The fraction is computed from `league_members` where `linked_profile_id IS NOT NULL OR is_owner = true` over total `league_members`.
+- Stats row — shipped reality: **Pot ($)** and **Members as a fraction (joined/total) with a colored dot** (green = all linked, amber = ≥50%, red = <50%) and "on PotKeeper" sub-label. The fraction is computed from `league_members` where `linked_profile_id IS NOT NULL OR is_owner = true` over total `league_members`.
+  - 🚧 Sprint 5 polish: add **Week (X of Y)** + **Your rank (#X)** to the stats row once the standings sync surfaces these as cached fields on `leagues` (currently only available inside the Standings tab snapshot).
 - **Commissioner card** below the stats row showing the current commissioner's avatar + name. If the commissioner doesn't have a `linked_profile_id` yet (they haven't joined PotKeeper), an amber "Invite" pill appears next to their name that opens the native Share sheet via the shared `shareLeagueInvite` helper (deep link + nudge copy: "Set up the pot on PotKeeper so we can play for real money this season"). Visible to **everyone in the league**, not just members.
-- Quick actions row: "Share invite", "Chat", "Standings"
+- 🚧 Sprint 5: Quick actions row ("Share invite", "Chat", "Standings") — currently absent from the shipped header. Chat is Phase 2; Share invite + Standings are easy adds.
 
-**Tabs:**
-1. **Standings**
-2. **Pot**
-3. **Members**
-4. **Activity**
-5. **Rules**
+**Tabs (shipped vs target):**
+1. **Standings** ✅
+2. **Pot** ✅
+3. **Members** ✅
+4. **Activity** 🚧 Sprint 5
+5. **Rules** 🚧 Sprint 5
 
-### Tab 6.1.1 — Standings
+### Tab 6.1.1 — Standings ✅ Shipped
 
 Pulled from Sleeper/ESPN/Yahoo, refreshed every few hours.
 
@@ -696,7 +781,7 @@ Pulled from Sleeper/ESPN/Yahoo, refreshed every few hours.
   - Trend arrow (up/down from last week)
   - Trophy icon next to whoever is in a payout slot
 
-### Tab 6.1.2 — Pot
+### Tab 6.1.2 — Pot ✅ Shipped
 
 THIS IS THE ICONIC SCREEN. Make it beautiful.
 
@@ -740,7 +825,7 @@ THIS IS THE ICONIC SCREEN. Make it beautiful.
   - If sponsorship funded: vertical marker on the chart at funding date with "+$500 sponsorship boost" annotation
 - Trust footer: "Held in PotKeeper Stripe escrow. Transaction ID: [hash]" (link to Stripe receipt)
 
-### Tab 6.1.3 — Members
+### Tab 6.1.3 — Members ✅ Shipped
 
 Simple list:
 - Section header reads "Roster · {joined}/{total} on PotKeeper" so the linked vs unlinked count is one tap deeper than the header stat.
@@ -749,16 +834,20 @@ Simple list:
 - **Per-row Invite affordance**: any member row where `linked_profile_id IS NULL` and `is_owner = false` (i.e. on Sleeper but not on PotKeeper, and not the commissioner — the commish has their own invite button in the header card) renders a compact sky-blue "Invite" pill that opens the native Share sheet via `shareLeagueInvite`. Copy is auto-join framed: "Join our league on PotKeeper. When you sign up and link your Sleeper account, you'll be added automatically." This works because of the `platform_identities_auto_link` trigger in `TECH_SPEC.md` §3.12 — the member just signs up and verifies their Sleeper handle; the trigger does the rest.
 - Visible to **everyone in the league** (not gated to commissioners). No bulk "Invite all missing members" button — keep per-row to avoid spam patterns and keep social graph attribution clean.
 
-### Tab 6.1.4 — Activity Feed
+### Tab 6.1.4 — Activity Feed 🚧 Sprint 5
 
-Vertically scrolling list of events:
+Vertically scrolling list of events. Backed by a `league_activity` view that aggregates `pot_ledger`, `standings_snapshots`, `payouts`, and `league_members` events into a unified per-league feed.
+
+Sprint 5 deliverable: build the view + the tab UI. Engagement-driver and a useful surface for push notifications to deep-link into.
+
+
 - "[Member] joined and paid"
 - "[Member] won Week 5"
 - "Pot reached $1,200"
 - "[Bar Name] dropped first-round-free at draft party" (if sponsored)
 - Each event has timestamp + icon
 
-### Tab 6.1.5 — Rules
+### Tab 6.1.5 — Rules 🚧 Sprint 5
 
 Read-only display of the league config:
 - Buy-in
@@ -769,21 +858,25 @@ Read-only display of the league config:
 
 ---
 
-## Flow 7: Connect Bank for Payout (Stripe Connect Express)
+## Flow 7: Connect Bank for Payout (Stripe Connect Express) 🟡 Partial
 
 > **Product principle (deferred KYC):** Stripe requires SSN for any individual receiving payouts (Bank Secrecy Act + IRS 1099-K). Asking for SSN at signup creates serious "is this app sketchy?" friction for a brand new user. So we **never ask for SSN until the user has actual winnings owed to them** — the same playbook DraftKings, FanDuel, Underdog, and PrizePicks all use. The wallet/onboarding route exists, but settings does **not** surface a "Set up payouts" CTA for users who haven't started onboarding. The natural triggers below are the only places the user is prompted to start Flow 7. (Once they've started, settings shows a "Payouts" status row so they can resume / confirm.)
 
-### Screen 7.1 — Trigger
+### Screen 7.1 — Trigger 🟡 Partial
 
-**Triggers (in order of frequency at season end):**
-- Banner at top of Home: "Connect a bank to receive payouts" → tap to open *(only shown once payouts become possible — i.e. user is in a paying spot mid-season or season has ended)*
+**Triggers — shipped today:**
+- ✅ `MyPayoutOnboardingCTA` on League Detail Pot tab when the user has a payout in `waiting_on_connect` status (i.e. payout fired, waiting for them to onboard)
+- ✅ `__DEV__` debug shortcut on Home (will be removed once the natural triggers ship — see `TECH_SPEC.md` §13.5)
+
+**Triggers — 🚧 Sprint 5:**
+- Home banner: "Connect a bank to receive payouts" — only shown once payouts become possible (user is in a paying spot mid-season or season has ended)
 - Push notification 2 weeks before season end: "Heads up: connect a bank to receive your winnings"
-- Inline prompt on League Detail Pot tab if you're in a payout slot but haven't connected
+- Inline prompt on Pot tab when user is **projected** in a payout slot but hasn't connected yet (preempts payout-time scramble)
 - League winnings card on Home: "$340 is waiting for you. Set up payouts to claim."
 
 **Not triggered by:** signup, settings browse, or league join. Day-1 users should never see Flow 7 unless they explicitly seek it out.
 
-### Screen 7.2 — Pre-Stripe Explainer
+### Screen 7.2 — Pre-Stripe Explainer ✅ Shipped
 
 - Top bar: back + "Connect your bank"
 - Trust illustration: a lock + bank icon
@@ -796,11 +889,11 @@ Read-only display of the league config:
 - Tertiary: "Why do I need this?" → bottom sheet
 - Primary button: "Continue with Stripe" → deep link out
 
-### Screen 7.3 — Stripe Express Onboarding
+### Screen 7.3 — Stripe Express Onboarding ✅ Shipped
 
 Stripe-hosted flow. Out-of-app web browser. Comes back via deep link to:
 
-### Screen 7.4 — Success: Bank Connected
+### Screen 7.4 — Success: Bank Connected ✅ Shipped
 
 - Success animation
 - "You're all set"
@@ -810,15 +903,17 @@ Stripe-hosted flow. Out-of-app web browser. Comes back via deep link to:
 
 ---
 
-## Flow 8: End of Season / Payout
+## Flow 8: End of Season / Payout 🟡 Partial — engine ✅ shipped, celebration UI 🚧 Sprint 5
 
-### Screen 8.1 — Season Ending Banner
+> **Engine ↔ UI split**: Pass 2A shipped the payout engine (`payouts` table, `runPayoutForLeague`, idempotent transfers, ledger writes). Pass 2B shipped autonomous close-out (cron-driven window expiry, retry self-serve). Pass 2C shipped the 95/5 reserve split + release cron. **Money moves correctly today.** What's missing is the **emotional payoff UI** — the trophy moment that makes users post screenshots to Reddit. Sprint 5 closes that gap.
+
+### Screen 8.1 — Season Ending Banner ✅ Shipped (as `AuthorizationBanner`)
 
 **Trigger**: Sleeper/ESPN reports the league is in final week or status changed to `complete`.
 
-- Top of all screens: dismissible banner with "Season ending — verify standings to start payout" with "Review" CTA
+Shipped today as the cross-tab `AuthorizationBanner` on League Detail when `authorization_status ≠ 'not_started'`. Doesn't yet appear on Home / global routes — that's a Sprint 5 polish add when the 4-tab restructure lands.
 
-### Screen 8.2 — Standings Authorization (the 48-72hr window)
+### Screen 8.2 — Standings Authorization (the 48-72hr window) ✅ Shipped
 
 **Purpose**: League members get a chance to flag disputes before payouts fire. **This is the screenshot you put on Reddit.** It's the single image that explains why PotKeeper is different from LeagueSafe.
 
@@ -832,7 +927,11 @@ Stripe-hosted flow. Out-of-app web browser. Comes back via deep link to:
 - Progress: "10 of 12 members have authorized"
 - Footer text: "When the window closes, payouts will be sent automatically. If a dispute is raised, payouts pause until resolved."
 
-### Screen 8.3 — Payout in Progress
+### Screen 8.3 — Payout in Progress 🟡 Partial — backed by `PayoutStatusList`, dedicated celebratory screen 🚧 Sprint 5
+
+**Shipped today**: `PayoutStatusList` on the Pot tab replaces the breakdown card once payouts exist; shows live status pill per rank with `Sent` / `Processing` / `Waiting on bank connection` states and a commissioner-side "Retry" pill when ≥1 row is `waiting_on_connect` or `failed`.
+
+**🚧 Sprint 5 build**: dedicated screen with hero animation (money flying or progress sweep) that auto-routes from authorize.tsx the moment the last vote tips the league to `closed_authorized`. Lists recipients with the same status pills, plus the 5% reserve note and the 1-2 business day expectation.
 
 - Hero animation (money flying or progress sweep)
 - "Sending payouts..."
@@ -840,10 +939,10 @@ Stripe-hosted flow. Out-of-app web browser. Comes back via deep link to:
   - "[Member] - $720 - ✅ Sent"
   - "[Member] - $360 - ⏳ Processing"
   - "[Member] - $120 - ⏳ Pending bank connection"
-- Charity row separately at bottom
-- Note: "Most payouts arrive within 1-2 business days. We hold 5% of the pot for 30 days as chargeback protection, then release it."
+- Reserve callout at bottom: *"95% paid out today. 5% (\$X per slot) is held 30 days as chargeback protection, then released automatically."* Source: `payouts.payout_slice='reserve'` + `release-reserves` cron.
+- Note: "Most payouts arrive within 1-2 business days."
 
-### Screen 8.4 — Payout Complete (member who won)
+### Screen 8.4 — Payout Complete (member who won) 🚧 Sprint 5
 
 - "The Win" Lottie animation plays full-screen (3.0-4.0s, see `BRAND.md` § Animation & Motion). Animated count-up of the payout amount renders inside the Lottie's transparent center safe area.
 - "You won $720"
@@ -857,7 +956,7 @@ Stripe-hosted flow. Out-of-app web browser. Comes back via deep link to:
   - Secondary: "View receipt"
 - Below: "Your league is over. Want to renew for next season?" with renewal CTA
 
-### Screen 8.5 — Payout Complete (member who didn't win)
+### Screen 8.5 — Payout Complete (member who didn't win) 🚧 Sprint 5
 
 - Empty trophy or "Better luck next year" illustration
 - "Your season is complete"
@@ -867,9 +966,13 @@ Stripe-hosted flow. Out-of-app web browser. Comes back via deep link to:
 
 ---
 
-## Flow 9: Browse / Discover
+## Flow 9: Browse / Discover 🔮 Phase 2
 
-### Screen 9.1 — Browse Leagues
+**Out of v1 scope.** The Browse tab itself ships as a stub in Sprint 5 (so the IA is in place for the 4-tab restructure) but no Browse content is built for v1. Bar Leagues, Public Leagues, Map View, and the Bar Partner Page all wait for Phase 2 — the bar partner CMS is itself blocked on the admin dashboard (`TECH_SPEC.md` §13.4), and Public Leagues requires the `join_requests` table + paid-join flow that Pass 1 deferred.
+
+For v1, bar partnerships surface only as the **bar sponsor banner on League Detail** (Screen 6.1) when `leagues.bar_partner_id` is set; that banner is ✅ shipped per Pass 2C.
+
+### Screen 9.1 — Browse Leagues 🔮 Phase 2
 
 **Purpose**: Find new leagues to join. Location-aware. Shows bar leagues, public leagues, and (Phase 3) creator leagues.
 
@@ -883,7 +986,7 @@ Stripe-hosted flow. Out-of-app web browser. Comes back via deep link to:
 - Below segmented control: filter chip row (sport, buy-in range, league size) — adds to current sub-tab's filter
 - Map view toggle (top right of segmented control area): list view ↔ map view
 
-### Screen 9.1.a — Near Me Sub-tab
+### Screen 9.1.a — Near Me Sub-tab 🔮 Phase 2
 
 If location not yet granted, full-screen overlay before list shows:
 
@@ -901,7 +1004,7 @@ If granted, show:
   - **Public Leagues** (any distance, sorted by buy-in)
 - Each card shows distance + bar logo (if applicable) + league name + buy-in + members slots remaining + "Join" CTA
 
-### Screen 9.1.b — Bar Leagues Sub-tab
+### Screen 9.1.b — Bar Leagues Sub-tab 🔮 Phase 2
 
 - Header: "Bar-sponsored leagues"
 - Toggle: "All cities" / "Near me"
@@ -910,14 +1013,14 @@ If granted, show:
   - 1-3 league cards under each bar
 - Empty state if no bars in your area: "No partner bars near [City] yet. Want to bring PotKeeper to your local bar?" + "Suggest a bar" form
 
-### Screen 9.1.c — Public Leagues Sub-tab
+### Screen 9.1.c — Public Leagues Sub-tab 🔮 Phase 2
 
 - Header: "Public leagues open to join"
 - Sort options: Newest / Lowest buy-in / Filling soonest
 - League cards with "Join" CTA
 - Each card has: league name, sport, platform, buy-in, X/Y members, host avatar, optional creator badge
 
-### Screen 9.2 — Bar Partner Page
+### Screen 9.2 — Bar Partner Page 🔮 Phase 2
 
 - Hero: bar's banner image + logo + name
 - Bar info: address, hours, fan club affiliation (e.g., "Official Broncos Backers DC"), distance from you
@@ -927,7 +1030,7 @@ If granted, show:
 - Map showing bar location
 - Sticky bottom: "Join a league here →"
 
-### Screen 9.3 — Map View
+### Screen 9.3 — Map View 🔮 Phase 2
 
 - Full-screen map with pins for bars + public leagues nearby
 - Tapping a pin opens a bottom sheet with bar/league summary + "Join" or "View Bar" CTA
@@ -936,9 +1039,13 @@ If granted, show:
 
 ---
 
-## Flow 10: Profile + Activity
+## Flow 10: Profile + Activity 🟡 Partial — minimal `settingsModal.tsx` ✅, full Profile tab + Activity + Tax Center 🚧 Sprint 5
 
-### Screen 10.1 — Profile
+### Screen 10.1 — Profile 🟡 Partial — `settingsModal.tsx` ✅, full Profile tab 🚧 Sprint 5
+
+**Shipped today** (`app/(app)/settingsModal.tsx`, accessed via the gear icon in the Tabs header): a slim subset — sign out, theme toggle, basic auth info. **No** Profile tab in the bottom nav, **no** Activity / Tax Center / Notifications rows, **no** Connected fantasy accounts management UI.
+
+**🚧 Sprint 5 build**: full Profile tab as part of the 4-tab restructure. The structure below is the build target.
 
 **Purpose**: Settings, identity, transaction history, support.
 
@@ -961,7 +1068,7 @@ If granted, show:
   - **Terms & Privacy Policy**
   - **Sign out** (red, bottom)
 
-### Screen 10.2 — Activity / Transaction History
+### Screen 10.2 — Activity / Transaction History 🚧 Sprint 5
 
 **Purpose**: All the wallet/transaction stuff that previously had its own tab. Lives under Profile because money context is on each league anyway.
 
@@ -974,9 +1081,19 @@ If granted, show:
   - Tap a row → expanded receipt view with Stripe transaction ID, payment method, status, "Download PDF receipt" button
 - Empty state: "No activity yet. Once you pay into a league, it shows up here."
 
-### Screen 10.3 — Tax Center (NEW)
+### Screen 10.3 — Tax Center 🚧 Sprint 5
 
 **Purpose**: Make 1099-K issuance predictable, not surprising. Users should know their tax situation before tax season hits, not after they get an email from Stripe in January.
+
+**Sprint 5 deliverables**:
+- New Edge Function `get-tax-summary` that sums `payouts.amount_cents` per recipient per calendar year
+- New `profiles.ytd_winnings_cents` cached column (refreshed by webhook on every `transfer` event)
+- The Tax Center screen below
+- The YTD card on Profile (Screen 10.1)
+- The YTD context line on Payout Complete winner screen (Screen 8.4)
+- Push notifications on first crossing $500 cumulative + on first payout that crosses $600 + on 1099-K availability in January (per Push table below)
+- `potkeeper.app/tax` static FAQ page (web work, not in-app)
+
 
 **Why a dedicated screen**: First-time fantasy winners who get a 1099-K without warning rate the experience badly enough to churn. Surfacing YTD winnings + threshold proximity year-round is the best mitigation. See `TECH_SPEC.md` §10 Tax Reporting for the data and policy.
 
@@ -1012,7 +1129,9 @@ If granted, show:
 
 ---
 
-## Push Notifications (copy spec)
+## Push Notifications (copy spec) 🚧 Sprint 5
+
+**Status**: not implemented. No push token registration, no `send-notifications` Edge Function, no event triggers wired. Sprint 5 deliverable as a single coordinated pass — registering Expo Push tokens at signup, building the dispatcher Edge Function, and wiring all 15 events below at once. Includes the deferred Pass 2C `p3` partner/ops sponsorship notifications.
 
 Implement these triggers and corresponding copy:
 
@@ -1100,4 +1219,4 @@ When generating mocks:
 
 ---
 
-*Last updated: May 1, 2026 (Session 9 — Sleeper-link state machine, league header invite affordances, Pot tab projected-boost UI). Pair with `VISION.md` for the why.*
+*Last updated: May 1, 2026 (Session 9 — full reconciliation pass: status legend added; Flows 1-10 tagged ✅ / 🟡 / 🚧 / 🔮 against shipped reality; Flow 3 conversion split from buy-in setup; new Screen 5.5 "Set up the pot"; Flow 4 (Create from scratch) and Flow 9 (Browse) marked Phase 2). Pair with `VISION.md` for the why.*
