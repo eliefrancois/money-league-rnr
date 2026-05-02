@@ -45,8 +45,20 @@ export default function LeagueIdLayout() {
           headerShown: false,
         }}
       />
-      <Stack.Screen name="buy-in" options={{ title: "Set up the pot" }} />
-      <Stack.Screen name="buy-in-pay" options={{ title: "Pay your buy-in" }} />
+      <Stack.Screen
+        name="buy-in"
+        options={{
+          // Custom in-screen ScreenTopBar — see comment on `index` above
+          // for why we skip the native iOS 26 Liquid Glass header.
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="buy-in-pay"
+        options={{
+          headerShown: false,
+        }}
+      />
       <Stack.Screen
         name="receipt"
         options={{ title: "Receipt", headerLeft: () => null, gestureEnabled: false }}

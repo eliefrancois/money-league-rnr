@@ -1,5 +1,12 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  Share,
+  View,
+} from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { FontAwesome } from "@expo/vector-icons";
 
@@ -18,6 +25,17 @@ import {
 } from "~/lib/sleeper";
 import { supabase } from "~/utils/supabase";
 
+// Per-Sleeper-league lookup used to render the LeaguesStep with the right
+// state on the Add/View/Notify-commish button. Built from a single query
+// against `leagues` after the Sleeper API returns. RLS ensures we only see
+// leagues we're already a member of, which is exactly what we need: any
+// row missing from this map is treated as "not yet imported".
+interface ExistingLeagueState {
+  potkeeperLeagueId: string;
+  iAmCommissioner: boolean;
+  commissionerDisplayName: string | null;
+}
+
 // Default to last completed season — most users will have leagues there. Lets us
 // avoid empty results in pre-season months. Year-picker on the leagues step.
 const DEFAULT_SEASON = "2025";
@@ -30,12 +48,19 @@ interface ImportSuccess {
   leagueName: string;
   memberCount: number;
   alreadyExisted: boolean;
+  // True when the Sleeper user we just imported as is the league's
+  // commissioner — gates the "Have a sponsorship code?" hint, since the
+  // redeem-sponsorship-code Edge Function only accepts the commissioner.
+  isCommissioner: boolean;
 }
 
 export default function SleeperLinkScreen() {
   const [step, setStep] = useState<Step>("username");
   const [sleeperUser, setSleeperUser] = useState<SleeperUser | null>(null);
   const [leagues, setLeagues] = useState<SleeperLeague[]>([]);
+  const [existingMap, setExistingMap] = useState<
+    Map<string, ExistingLeagueState>
+  >(new Map());
   const [season, setSeason] = useState<string>(DEFAULT_SEASON);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<ImportSuccess | null>(null);
@@ -48,11 +73,76 @@ export default function SleeperLinkScreen() {
       setStep("username");
       setSleeperUser(null);
       setLeagues([]);
+      setExistingMap(new Map());
       setSeason(DEFAULT_SEASON);
       setLoading(false);
       setSuccess(null);
     }, []),
   );
+
+  // Cross-checks the Sleeper league list against PotKeeper's leagues table so
+  // the LeaguesStep can render "Already added" / "View league" / "Notify
+  // commish" instead of always offering "Add to PotKeeper". RLS scopes the
+  // results to leagues this user is already a member of — which is exactly
+  // when we want the alternate states.
+  const fetchExistingPotKeeperLeagues = async (
+    sleeperLeagues: SleeperLeague[],
+  ): Promise<Map<string, ExistingLeagueState>> => {
+    if (sleeperLeagues.length === 0) return new Map();
+    const externalIds = sleeperLeagues.map((l) => l.league_id);
+
+    const { data: existing, error } = await supabase
+      .from("leagues")
+      .select(
+        "id, external_league_id, commissioner_external_user_id, commissioner_profile_id",
+      )
+      .eq("platform", "sleeper")
+      .in("external_league_id", externalIds);
+
+    if (error) {
+      console.warn("[sleeper-link] failed to fetch existing leagues:", error.message);
+      return new Map();
+    }
+    if (!existing || existing.length === 0) return new Map();
+
+    // Pull a display name for the commissioner so the "Notify commish" share
+    // sheet can name them. We use league_members because the commissioner's
+    // PotKeeper profile may not be linked yet (they may not have signed up).
+    const commishExternalIds = existing
+      .map((l) => l.commissioner_external_user_id)
+      .filter((v): v is string => typeof v === "string");
+    const commishNameByExternalId = new Map<string, string>();
+    if (commishExternalIds.length > 0) {
+      const { data: commishMembers } = await supabase
+        .from("league_members")
+        .select("external_user_id, external_display_name, external_username, team_name")
+        .in("external_user_id", commishExternalIds)
+        .eq("is_owner", true);
+      for (const m of commishMembers ?? []) {
+        const name =
+          m.external_display_name ?? m.external_username ?? m.team_name ?? null;
+        if (name && !commishNameByExternalId.has(m.external_user_id)) {
+          commishNameByExternalId.set(m.external_user_id, name);
+        }
+      }
+    }
+
+    const profileId = (await supabase.auth.getSession()).data.session?.user.id;
+    const map = new Map<string, ExistingLeagueState>();
+    for (const row of existing) {
+      map.set(row.external_league_id, {
+        potkeeperLeagueId: row.id,
+        iAmCommissioner:
+          row.commissioner_profile_id != null &&
+          row.commissioner_profile_id === profileId,
+        commissionerDisplayName:
+          row.commissioner_external_user_id != null
+            ? commishNameByExternalId.get(row.commissioner_external_user_id) ?? null
+            : null,
+      });
+    }
+    return map;
+  };
 
   const handleLookupUsername = async (username: string) => {
     if (!username.trim()) return;
@@ -60,8 +150,10 @@ export default function SleeperLinkScreen() {
     try {
       const sleeperResult = await getSleeperUser(username.trim());
       const leagueResult = await getSleeperUserLeagues(sleeperResult.user_id, DEFAULT_SEASON);
+      const map = await fetchExistingPotKeeperLeagues(leagueResult);
       setSleeperUser(sleeperResult);
       setLeagues(leagueResult);
+      setExistingMap(map);
       setStep("leagues");
     } catch (err) {
       if (err instanceof SleeperUserNotFoundError) {
@@ -81,7 +173,9 @@ export default function SleeperLinkScreen() {
     setLoading(true);
     try {
       const leagueResult = await getSleeperUserLeagues(sleeperUser.user_id, newSeason);
+      const map = await fetchExistingPotKeeperLeagues(leagueResult);
       setLeagues(leagueResult);
+      setExistingMap(map);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       Alert.alert("Sleeper error", message);
@@ -115,6 +209,9 @@ export default function SleeperLinkScreen() {
         leagueName: league.name,
         memberCount: (data?.members ?? []).length,
         alreadyExisted: data?.already_existed ?? false,
+        isCommissioner:
+          data?.league?.commissioner_external_user_id != null &&
+          data.league.commissioner_external_user_id === sleeperUser.user_id,
       });
       setStep("success");
     } catch (err) {
@@ -133,6 +230,7 @@ export default function SleeperLinkScreen() {
       <LeaguesStep
         sleeperUser={sleeperUser}
         leagues={leagues}
+        existingMap={existingMap}
         season={season}
         loading={loading}
         onSeasonChange={handleSeasonChange}
@@ -220,6 +318,7 @@ function UsernameStep({
 function LeaguesStep({
   sleeperUser,
   leagues,
+  existingMap,
   season,
   loading,
   onSeasonChange,
@@ -228,6 +327,7 @@ function LeaguesStep({
 }: {
   sleeperUser: SleeperUser;
   leagues: SleeperLeague[];
+  existingMap: Map<string, ExistingLeagueState>;
   season: string;
   loading: boolean;
   onSeasonChange: (s: string) => void;
@@ -282,7 +382,12 @@ function LeaguesStep({
         </Card>
       ) : (
         leagues.map((league) => (
-          <LeagueCard key={league.league_id} league={league} onImport={onImport} />
+          <LeagueCard
+            key={league.league_id}
+            league={league}
+            existing={existingMap.get(league.league_id) ?? null}
+            onImport={onImport}
+          />
         ))
       )}
     </ScrollView>
@@ -291,17 +396,35 @@ function LeaguesStep({
 
 function LeagueCard({
   league,
+  existing,
   onImport,
 }: {
   league: SleeperLeague;
+  existing: ExistingLeagueState | null;
   onImport: (l: SleeperLeague) => void;
 }) {
   const statusBadge = formatStatus(league.status);
+  const isImported = existing != null;
+
+  // Subdued styling when the league is already in PotKeeper — keeps the
+  // visual hierarchy on actionable rows (the brand-new leagues the user
+  // came here to import).
+  const cardClassName = isImported ? "opacity-70" : undefined;
+
   return (
-    <Card>
+    <Card className={cardClassName}>
       <CardHeader>
-        <CardTitle>{league.name}</CardTitle>
-        <View className="flex-row items-center gap-2 mt-1">
+        <View className="flex-row items-start justify-between gap-2">
+          <CardTitle>{league.name}</CardTitle>
+          {isImported && (
+            <View className="rounded-full bg-green-500/15 px-2 py-0.5">
+              <Text className="text-[10px] font-bold uppercase tracking-wide text-green-700 dark:text-green-400">
+                Already added
+              </Text>
+            </View>
+          )}
+        </View>
+        <View className="flex-row items-center gap-2 mt-1 flex-wrap">
           <Text className="text-xs text-muted-foreground">
             {league.season} · {league.total_rosters ?? "?"} teams
           </Text>
@@ -312,12 +435,68 @@ function LeagueCard({
           )}
         </View>
       </CardHeader>
-      <CardContent>
-        <Button onPress={() => onImport(league)}>
-          <Text>Add to PotKeeper</Text>
-        </Button>
+      <CardContent className="gap-2">
+        {isImported && existing ? (
+          <ImportedLeagueActions league={league} existing={existing} />
+        ) : (
+          <Button onPress={() => onImport(league)}>
+            <Text>Add to PotKeeper</Text>
+          </Button>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function ImportedLeagueActions({
+  league,
+  existing,
+}: {
+  league: SleeperLeague;
+  existing: ExistingLeagueState;
+}) {
+  const handleViewLeague = () =>
+    router.push({
+      pathname: "/league/[id]",
+      params: { id: existing.potkeeperLeagueId },
+    });
+
+  // No push/email backend yet (parked under p3) — Share sheet gives the user
+  // a real way to nudge their commissioner via iMessage, Discord, group
+  // chat, etc. Copy is short + carries the league deep link so the commish
+  // lands on the right Pot tab where the "Set up the pot" CTA already lives.
+  const handleNotifyCommish = async () => {
+    const commishLabel = existing.commissionerDisplayName ?? "the commissioner";
+    const message =
+      `Hey ${commishLabel} — our Sleeper league "${league.name}" is on PotKeeper but the pot isn't set up yet. ` +
+      `Can you finish the buy-in setup? Open in PotKeeper.`;
+    try {
+      await Share.share({ message });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "Unknown error";
+      Alert.alert("Couldn't open share sheet", detail);
+    }
+  };
+
+  return (
+    <View className="gap-2">
+      <Button onPress={handleViewLeague} variant="secondary">
+        <View className="flex-row items-center gap-2">
+          <FontAwesome name="arrow-right" size={12} />
+          <Text>View league</Text>
+        </View>
+      </Button>
+      {!existing.iAmCommissioner && (
+        <Button onPress={handleNotifyCommish} variant="outline">
+          <View className="flex-row items-center gap-2">
+            <FontAwesome name="bell" size={12} />
+            <Text>
+              Notify {existing.commissionerDisplayName ?? "commish"}
+            </Text>
+          </View>
+        </Button>
+      )}
+    </View>
   );
 }
 
@@ -354,10 +533,36 @@ function SuccessStep({
           {success.leagueName} · {success.memberCount} members
         </Text>
       </View>
-      <View className="w-full gap-2">
+      <View className="w-full gap-3 max-w-sm">
         <Button onPress={onViewLeague} className="w-full">
           <Text>View league</Text>
         </Button>
+        {success.isCommissioner && (
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/league/[id]/buy-in",
+                params: { id: success.leagueId },
+              })
+            }
+            className="active:opacity-80"
+          >
+            <View className="rounded-2xl border border-dashed border-sky-500/40 bg-sky-500/5 p-3 flex-row items-center gap-3">
+              <View className="h-8 w-8 rounded-full bg-sky-500/15 items-center justify-center">
+                <FontAwesome name="ticket" size={13} color="#0ea5e9" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-xs font-semibold text-foreground">
+                  Have a sponsorship code?
+                </Text>
+                <Text className="text-[11px] text-muted-foreground">
+                  Apply it during buy-in setup to add a partner-funded boost.
+                </Text>
+              </View>
+              <FontAwesome name="chevron-right" size={11} color="#94a3b8" />
+            </View>
+          </Pressable>
+        )}
         <Button onPress={onDone} variant="ghost" className="w-full">
           <Text>Back to home</Text>
         </Button>

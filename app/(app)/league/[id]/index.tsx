@@ -1,22 +1,21 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
+  Share,
   TouchableOpacity,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { FontAwesome } from "@expo/vector-icons";
 
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Text } from "~/components/ui/text";
-import { ThemeToggle } from "~/components/ThemeToggle";
+import { ScreenTopBar } from "~/components/ScreenTopBar";
 import { useSession } from "~/context";
 import type { Json, Tables } from "~/lib/database.types";
-import { useColorScheme } from "~/lib/useColorScheme";
 import { supabase } from "~/utils/supabase";
 
 type BarPartnerBrief = Pick<
@@ -53,8 +52,6 @@ type TabKey = "standings" | "pot" | "members";
 export default function LeagueDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useSession();
-  const insets = useSafeAreaInsets();
-  const { isDarkColorScheme } = useColorScheme();
   const [league, setLeague] = useState<League | null>(null);
   const [members, setMembers] = useState<LeagueMember[]>([]);
   const [snapshot, setSnapshot] = useState<StandingsSnapshot | null>(null);
@@ -153,11 +150,7 @@ export default function LeagueDetailScreen() {
   if (loading) {
     return (
       <View className="flex-1 bg-secondary/30">
-        <TopBar
-          title="League"
-          insetsTop={insets.top}
-          isDark={isDarkColorScheme}
-        />
+        <ScreenTopBar title="League" />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" />
         </View>
@@ -168,11 +161,7 @@ export default function LeagueDetailScreen() {
   if (error || !league) {
     return (
       <View className="flex-1 bg-secondary/30">
-        <TopBar
-          title="League"
-          insetsTop={insets.top}
-          isDark={isDarkColorScheme}
-        />
+        <ScreenTopBar title="League" />
         <View className="flex-1 items-center justify-center gap-2 p-6">
           <FontAwesome name="exclamation-triangle" size={32} color="#f59e0b" />
           <Text className="text-center">{error ?? "League not found."}</Text>
@@ -190,16 +179,15 @@ export default function LeagueDetailScreen() {
 
   return (
     <View className="flex-1 bg-secondary/30">
-      <TopBar
-        title={league.name}
-        insetsTop={insets.top}
-        isDark={isDarkColorScheme}
-      />
+      <ScreenTopBar title={league.name} />
       <ScrollView contentContainerClassName="p-5 gap-4">
         <LeagueHeaderCard
           league={league}
           commissionerMember={commissionerMember}
           memberCount={members.length}
+          joinedCount={
+            members.filter((m) => m.linked_profile_id != null).length
+          }
         />
 
         <BarPartnerBanner league={league} />
@@ -241,54 +229,10 @@ export default function LeagueDetailScreen() {
           <RosterSection
             members={members}
             currentProfileId={user?.id ?? null}
+            leagueName={league.name}
           />
         )}
       </ScrollView>
-    </View>
-  );
-}
-
-// ============================================================================
-// Top bar — custom in-screen header. Mirrors the wallet screen's pattern so
-// every secondary screen in the app feels consistent (no iOS 26 Liquid Glass
-// capsules around the buttons, dark/light text per theme).
-// ============================================================================
-
-function TopBar({
-  title,
-  insetsTop,
-  isDark,
-}: {
-  title: string;
-  insetsTop: number;
-  isDark: boolean;
-}) {
-  return (
-    <View
-      className="px-5 pb-2 flex-row items-center justify-between bg-secondary/30"
-      style={{ paddingTop: insetsTop + 8 }}
-    >
-      <Pressable
-        onPress={() => router.back()}
-        hitSlop={16}
-        className="h-10 w-10 items-center justify-center"
-        accessibilityLabel="Back"
-      >
-        <FontAwesome
-          name="chevron-left"
-          size={18}
-          color={isDark ? "#FAFAFA" : "#0A0A0F"}
-        />
-      </Pressable>
-      <Text
-        className="text-base font-semibold flex-1 text-center mx-2"
-        numberOfLines={1}
-      >
-        {title}
-      </Text>
-      <View className="h-10 w-10 items-center justify-center">
-        <ThemeToggle />
-      </View>
     </View>
   );
 }
@@ -946,7 +890,10 @@ function PotTab({
           onPayoutsChange={onPayoutsChange}
         />
       )}
-      <SponsorshipPotBanner league={league} />
+      <SponsorshipPotBanner league={league} members={members} />
+      {isCommissioner && league.sponsorship_status === "none" && (
+        <SponsorshipCodeHint leagueId={league.id} />
+      )}
       <HeroPotCard league={league} isCommissioner={isCommissioner} />
       {payouts.length === 0 ? (
         <PayoutBreakdownCard
@@ -1003,38 +950,45 @@ function PotUnconfiguredCard({
   commissionerName: string;
 }) {
   if (isCommissioner) {
+    // Commissioners with no sponsorship attached see the hint inline. Once a
+    // code is redeemed (status moves off `none`) the SponsorshipPotBanner
+    // takes over up the page, so we don't double up.
+    const showSponsorshipHint = league.sponsorship_status === "none";
     return (
-      <Pressable
-        onPress={() =>
-          router.push({
-            pathname: "/league/[id]/buy-in",
-            params: { id: league.id },
-          })
-        }
-        className="active:opacity-90"
-      >
-        <View className="rounded-2xl border border-green-500/30 bg-green-500/10 p-5 gap-1">
-          <View className="flex-row items-center gap-2">
-            <FontAwesome name="trophy" size={14} color="#22c55e" />
-            <Text className="text-xs font-bold uppercase tracking-wide text-green-700 dark:text-green-400">
-              Action needed
+      <View className="gap-2">
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: "/league/[id]/buy-in",
+              params: { id: league.id },
+            })
+          }
+          className="active:opacity-90"
+        >
+          <View className="rounded-2xl border border-green-500/30 bg-green-500/10 p-5 gap-1">
+            <View className="flex-row items-center gap-2">
+              <FontAwesome name="trophy" size={14} color="#22c55e" />
+              <Text className="text-xs font-bold uppercase tracking-wide text-green-700 dark:text-green-400">
+                Action needed
+              </Text>
+            </View>
+            <Text className="text-base font-extrabold mt-1">
+              Set up the pot
             </Text>
-          </View>
-          <Text className="text-base font-extrabold mt-1">
-            Set up the pot
-          </Text>
-          <Text className="text-xs text-muted-foreground">
-            Pick a buy-in, payout split, and fee policy. Members can't pay in
-            until you do.
-          </Text>
-          <View className="flex-row items-center gap-1 mt-2">
-            <Text className="text-sm font-semibold text-green-700 dark:text-green-400">
-              Get started
+            <Text className="text-xs text-muted-foreground">
+              Pick a buy-in, payout split, and fee policy. Members can't pay in
+              until you do.
             </Text>
-            <FontAwesome name="chevron-right" size={11} color="#22c55e" />
+            <View className="flex-row items-center gap-1 mt-2">
+              <Text className="text-sm font-semibold text-green-700 dark:text-green-400">
+                Get started
+              </Text>
+              <FontAwesome name="chevron-right" size={11} color="#22c55e" />
+            </View>
           </View>
-        </View>
-      </Pressable>
+        </Pressable>
+        {showSponsorshipHint && <SponsorshipCodeHint leagueId={league.id} />}
+      </View>
     );
   }
   return (
@@ -1044,6 +998,43 @@ function PotUnconfiguredCard({
         when buy-in is ready.
       </Text>
     </View>
+  );
+}
+
+// ============================================================================
+// SponsorshipCodeHint — small affordance pointing commissioners to the
+// buy-in screen where the actual sponsorship code entry lives. Surfaced
+// from any "you haven't set the pot up yet" entry point so commissioners
+// who got a code from a partner know where to apply it. Single source of
+// truth for redemption stays in `buy-in.tsx` (`SponsorshipSetupSection`).
+// ============================================================================
+
+function SponsorshipCodeHint({ leagueId }: { leagueId: string }) {
+  return (
+    <Pressable
+      onPress={() =>
+        router.push({
+          pathname: "/league/[id]/buy-in",
+          params: { id: leagueId },
+        })
+      }
+      className="active:opacity-80"
+    >
+      <View className="rounded-2xl border border-dashed border-sky-500/40 bg-sky-500/5 p-3 flex-row items-center gap-3">
+        <View className="h-8 w-8 rounded-full bg-sky-500/15 items-center justify-center">
+          <FontAwesome name="ticket" size={13} color="#0ea5e9" />
+        </View>
+        <View className="flex-1">
+          <Text className="text-xs font-semibold text-foreground">
+            Have a sponsorship code?
+          </Text>
+          <Text className="text-[11px] text-muted-foreground">
+            Apply it during buy-in setup to add a partner-funded boost.
+          </Text>
+        </View>
+        <FontAwesome name="chevron-right" size={11} color="#94a3b8" />
+      </View>
+    </Pressable>
   );
 }
 
@@ -1846,37 +1837,86 @@ function BarPartnerBanner({ league }: { league: League }) {
   );
 }
 
-function SponsorshipPotBanner({ league }: { league: League }) {
+// `get_sponsorship_view` (migration 20260502000017) shape — service-role-safe
+// projection fields that clients can use for the Pot tab banner without
+// reading `sponsorship_codes` directly.
+type SponsorshipView = {
+  status: string;
+  boost_max_cents: number;
+  match_ratio: number;
+  expires_at: string | null;
+  min_members_paid_pct: number;
+  funded_at: string | null;
+  partner_name: string;
+};
+
+type SponsorshipPotMath = {
+  memberPaidCents: number;
+  sponsorshipCreditedCents: number;
+};
+
+function SponsorshipPotBanner({
+  league,
+  members,
+}: {
+  league: League;
+  members: LeagueMember[];
+}) {
+  const [meta, setMeta] = useState<SponsorshipView | null>(null);
+  const [pot, setPot] = useState<SponsorshipPotMath | null>(null);
+
+  // Pull RPC meta + materialized-view math whenever sponsorship is live.
+  // The RPC is gated by league membership; the MV exposes the public-safe
+  // pot rollups we need for the projection (member_paid_cents,
+  // sponsorship_credited_cents).
+  useEffect(() => {
+    if (
+      league.sponsorship_status !== "redeemed_pending" &&
+      league.sponsorship_status !== "funded"
+    ) {
+      setMeta(null);
+      setPot(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [{ data: viewRows }, { data: balRow }] = await Promise.all([
+        supabase
+          .rpc("get_sponsorship_view", { p_league_id: league.id })
+          .returns<SponsorshipView[]>(),
+        supabase
+          .from("league_pot_balance")
+          .select("member_paid_cents, sponsorship_credited_cents")
+          .eq("league_id", league.id)
+          .maybeSingle(),
+      ]);
+      if (cancelled) return;
+      const view = Array.isArray(viewRows) ? viewRows[0] : null;
+      if (view) setMeta(view);
+      if (balRow) {
+        setPot({
+          memberPaidCents: Number(balRow.member_paid_cents ?? 0),
+          sponsorshipCreditedCents: Number(balRow.sponsorship_credited_cents ?? 0),
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [league.id, league.sponsorship_status]);
+
+  // Mirrors `sponsorship-boost-tick` cron's denominator (linked-or-owner)
+  // so the on-screen progress bar matches the threshold the cron evaluates.
+  const visibleMembers = useMemo(
+    () => members.filter((m) => m.linked_profile_id != null || m.is_owner),
+    [members],
+  );
+  const paidCount = useMemo(
+    () => visibleMembers.filter((m) => m.payment_status === "paid").length,
+    [visibleMembers],
+  );
+
   if (league.sponsorship_status === "none") return null;
-  const max = league.sponsorship_boost_max_cents ?? 0;
-
-  if (league.sponsorship_status === "redeemed_pending") {
-    return (
-      <View className="rounded-2xl border border-sky-500/30 bg-sky-500/5 p-4 gap-1">
-        <Text className="text-[10px] uppercase tracking-wide font-semibold text-sky-800 dark:text-sky-400">
-          Sponsorship boost
-        </Text>
-        <Text className="text-sm text-foreground">
-          Up to {formatCents(max)} from PotKeeper can still unlock once enough
-          members have paid and your code is still valid.
-        </Text>
-      </View>
-    );
-  }
-
-  if (league.sponsorship_status === "funded") {
-    return (
-      <View className="rounded-2xl border border-green-500/30 bg-green-500/10 p-4 gap-1">
-        <Text className="text-[10px] uppercase tracking-wide font-semibold text-green-700 dark:text-green-400">
-          Sponsorship boost
-        </Text>
-        <Text className="text-sm text-foreground">
-          This pot includes a PotKeeper sponsorship credit (up to{" "}
-          {formatCents(max)} per your code rules).
-        </Text>
-      </View>
-    );
-  }
 
   if (league.sponsorship_status === "forfeited") {
     return (
@@ -1888,7 +1928,109 @@ function SponsorshipPotBanner({ league }: { league: League }) {
     );
   }
 
-  return null;
+  // `boost_max_cents` is denormalized onto leagues at redemption time, so it's
+  // safe to fall back to it before the RPC resolves.
+  const boostMax = meta?.boost_max_cents ?? league.sponsorship_boost_max_cents ?? 0;
+  const matchRatio = Number(meta?.match_ratio ?? 1) || 1;
+  const minPaidPct = Number(meta?.min_members_paid_pct ?? 0.8) || 0.8;
+  const partnerName = meta?.partner_name ?? "Partner";
+
+  if (league.sponsorship_status === "funded") {
+    const credited = pot?.sponsorshipCreditedCents ?? 0;
+    return (
+      <View className="rounded-2xl border border-green-500/30 bg-green-500/10 p-4 gap-1">
+        <Text className="text-[10px] uppercase tracking-wide font-semibold text-green-700 dark:text-green-400">
+          {partnerName === "Partner" ? "Sponsorship credited" : `${partnerName} · credited`}
+        </Text>
+        <Text className="text-3xl font-black tabular-nums tracking-tight text-foreground">
+          {formatCents(credited)}
+        </Text>
+        <Text className="text-[11px] text-muted-foreground">
+          Already added to the pot. Counts toward winner payouts when standings finalize.
+        </Text>
+      </View>
+    );
+  }
+
+  // redeemed_pending — show the live projection.
+  const memberPaidCents = pot?.memberPaidCents ?? 0;
+  const projectedBoost = Math.min(
+    Math.max(0, Math.floor(memberPaidCents * matchRatio)),
+    boostMax,
+  );
+  const visibleCount = visibleMembers.length;
+  const requiredPaid = Math.max(1, Math.ceil(visibleCount * minPaidPct));
+  const paidShortfall = Math.max(0, requiredPaid - paidCount);
+  const paidProgressPct = visibleCount > 0
+    ? Math.min(100, Math.round((paidCount / requiredPaid) * 100))
+    : 0;
+  const expiresAt = meta?.expires_at ? new Date(meta.expires_at) : null;
+  const expiresInDays = expiresAt
+    ? Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : null;
+  const expired = expiresAt != null && expiresAt.getTime() <= Date.now();
+
+  return (
+    <View className="rounded-2xl border border-sky-500/30 bg-sky-500/5 p-4 gap-3">
+      <View className="flex-row items-start justify-between gap-3">
+        <View className="flex-1">
+          <Text className="text-[10px] uppercase tracking-wide font-semibold text-sky-800 dark:text-sky-400">
+            {partnerName === "Partner" ? "Sponsorship boost (pending)" : `${partnerName} · pending boost`}
+          </Text>
+          <Text className="text-3xl font-black tabular-nums tracking-tight text-foreground mt-1">
+            {formatCents(projectedBoost)}
+          </Text>
+          <Text className="text-[11px] text-muted-foreground mt-0.5">
+            Projected · cap {formatCents(boostMax)}
+            {matchRatio !== 1 ? ` · ${matchRatio.toFixed(2)}× match` : ""}
+          </Text>
+        </View>
+        {expiresInDays != null && !expired && (
+          <View className="rounded-full bg-sky-500/10 px-2.5 py-1">
+            <Text className="text-[10px] font-semibold text-sky-700 dark:text-sky-400">
+              {expiresInDays === 0 ? "Expires today" : `${expiresInDays}d left`}
+            </Text>
+          </View>
+        )}
+        {expired && (
+          <View className="rounded-full bg-amber-500/15 px-2.5 py-1">
+            <Text className="text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+              Expired
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {visibleCount > 0 && (
+        <View className="gap-1.5">
+          <View className="flex-row items-center justify-between">
+            <Text className="text-[11px] text-muted-foreground">
+              Paid members
+            </Text>
+            <Text className="text-[11px] font-semibold tabular-nums text-foreground">
+              {paidCount} / {requiredPaid} needed
+            </Text>
+          </View>
+          <View className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <View
+              className="h-1.5 rounded-full bg-sky-500"
+              style={{ width: `${paidProgressPct}%` }}
+            />
+          </View>
+        </View>
+      )}
+
+      <Text className="text-[11px] text-muted-foreground">
+        {expired
+          ? "This code passed its expiration before unlocking. The next boost cron will mark it forfeited."
+          : paidShortfall === 0
+            ? projectedBoost > 0
+              ? "Threshold met — funds credit on the next sponsorship cron run."
+              : "Threshold met — boost will credit once members start paying in."
+            : `${paidShortfall} more paid member${paidShortfall === 1 ? "" : "s"} unlocks the boost.`}
+      </Text>
+    </View>
+  );
 }
 
 // ============================================================================
@@ -1899,10 +2041,12 @@ function LeagueHeaderCard({
   league,
   commissionerMember,
   memberCount,
+  joinedCount,
 }: {
   league: League;
   commissionerMember: LeagueMember | undefined;
   memberCount: number;
+  joinedCount: number;
 }) {
   const platformLabel =
     league.platform.charAt(0).toUpperCase() + league.platform.slice(1);
@@ -1927,7 +2071,7 @@ function LeagueHeaderCard({
 
       <View className="flex-row gap-6">
         <Stat label="Rosters" value={String(league.total_rosters ?? "?")} />
-        <Stat label="Members" value={String(memberCount)} />
+        <MembersStat joined={joinedCount} total={memberCount} />
         <Stat
           label="Buy-in"
           value={
@@ -1953,7 +2097,70 @@ function LeagueHeaderCard({
             </Text>
           )}
         </View>
+        {!commissionerOnPotKeeper && (
+          <Pressable
+            onPress={() =>
+              shareLeagueInvite({
+                recipientLabel: commissionerName,
+                leagueName: league.name,
+                isCommissionerInvite: true,
+              })
+            }
+            className="rounded-full bg-amber-500/15 px-3 py-1.5 active:opacity-70"
+          >
+            <View className="flex-row items-center gap-1.5">
+              <FontAwesome name="share" size={11} color="#f59e0b" />
+              <Text className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                Invite
+              </Text>
+            </View>
+          </Pressable>
+        )}
       </View>
+    </View>
+  );
+}
+
+// Members stat with PotKeeper coverage. Numerator color signals at-a-glance
+// how many members have actually joined: green when the league is fully on
+// PotKeeper, amber for partial, red when nobody else has signed up yet.
+// The fraction is dense but readable; the sub-label spells it out.
+function MembersStat({ joined, total }: { joined: number; total: number }) {
+  const tone =
+    total === 0 || joined === 0
+      ? "red"
+      : joined >= total
+        ? "green"
+        : "amber";
+  const numeratorColor =
+    tone === "green"
+      ? "text-green-600 dark:text-green-400"
+      : tone === "amber"
+        ? "text-amber-600 dark:text-amber-400"
+        : "text-red-600 dark:text-red-400";
+  const dotColor =
+    tone === "green" ? "#22c55e" : tone === "amber" ? "#f59e0b" : "#ef4444";
+
+  return (
+    <View>
+      <View className="flex-row items-center gap-1.5">
+        <View
+          className="h-1.5 w-1.5 rounded-full"
+          style={{ backgroundColor: dotColor }}
+        />
+        <Text className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+          Members
+        </Text>
+      </View>
+      <View className="flex-row items-baseline gap-0.5 mt-0.5">
+        <Text className={`text-xl font-extrabold tabular-nums ${numeratorColor}`}>
+          {joined}
+        </Text>
+        <Text className="text-xl font-extrabold text-muted-foreground tabular-nums">
+          /{total}
+        </Text>
+      </View>
+      <Text className="text-[10px] text-muted-foreground">on PotKeeper</Text>
     </View>
   );
 }
@@ -1986,15 +2193,24 @@ function StatusPill({ label }: { label: string }) {
 function RosterSection({
   members,
   currentProfileId,
+  leagueName,
 }: {
   members: LeagueMember[];
   currentProfileId: string | null;
+  leagueName: string;
 }) {
+  const joinedCount = members.filter((m) => m.linked_profile_id != null).length;
   return (
     <View>
-      <Text className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2 px-1">
-        Roster ({members.length})
-      </Text>
+      <View className="flex-row items-center justify-between mb-2 px-1">
+        <Text className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+          Roster ({members.length})
+        </Text>
+        <Text className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+          <Text className="text-green-700 dark:text-green-400">{joinedCount}</Text>
+          /{members.length} on PotKeeper
+        </Text>
+      </View>
       <View className="rounded-2xl border border-border bg-card overflow-hidden">
         {members.map((m, i) => (
           <MemberRow
@@ -2002,6 +2218,7 @@ function RosterSection({
             member={m}
             isYou={m.linked_profile_id === currentProfileId}
             isLast={i === members.length - 1}
+            leagueName={leagueName}
           />
         ))}
       </View>
@@ -2013,10 +2230,12 @@ function MemberRow({
   member,
   isYou,
   isLast,
+  leagueName,
 }: {
   member: LeagueMember;
   isYou: boolean;
   isLast: boolean;
+  leagueName: string;
 }) {
   const primary =
     member.team_name ??
@@ -2026,6 +2245,11 @@ function MemberRow({
   const handle = member.external_display_name ?? member.external_username;
   const secondary = member.team_name && handle ? `@${handle}` : null;
   const initial = primary[0]?.toUpperCase() ?? "?";
+  // The commissioner already has its own invite affordance in the league
+  // header card; suppressing the row-level one for them keeps the UI from
+  // double-pumping the same action.
+  const showInvite =
+    !isYou && !member.is_owner && member.linked_profile_id == null;
 
   return (
     <View
@@ -2052,11 +2276,31 @@ function MemberRow({
           </Text>
         )}
       </View>
-      <View className="flex-row gap-1.5">
+      <View className="flex-row items-center gap-1.5">
         {member.is_owner && <Chip label="Commish" tone="gold" />}
         {isYou && <Chip label="You" tone="green" />}
         {member.linked_profile_id && !isYou && (
           <Chip label="Joined" tone="green" />
+        )}
+        {showInvite && (
+          <Pressable
+            onPress={() =>
+              shareLeagueInvite({
+                recipientLabel: primary,
+                leagueName,
+                isCommissionerInvite: false,
+              })
+            }
+            className="rounded-full bg-sky-500/15 px-2.5 py-1 active:opacity-70"
+            hitSlop={6}
+          >
+            <View className="flex-row items-center gap-1">
+              <FontAwesome name="share" size={10} color="#0ea5e9" />
+              <Text className="text-[10px] font-bold uppercase tracking-wide text-sky-700 dark:text-sky-400">
+                Invite
+              </Text>
+            </View>
+          </Pressable>
         )}
       </View>
     </View>
@@ -2106,6 +2350,29 @@ function formatLeagueStatus(status: string | null): string | null {
   if (status === "drafting") return "Drafting";
   if (status === "pre_draft") return "Pre-draft";
   return status.replace(/_/g, " ");
+}
+
+// Opens the native Share sheet pre-filled with an invite message. We don't
+// have push or email yet (parked under p3), so Share is the no-infra path
+// that lets users nudge leaguemates via iMessage / Discord / group chat.
+// Once they sign up + verify their Sleeper handle, the auto-link trigger
+// (`platform_identities_auto_link`, migration 20260502000018) joins them
+// to this league automatically.
+async function shareLeagueInvite(args: {
+  recipientLabel: string;
+  leagueName: string;
+  isCommissionerInvite: boolean;
+}) {
+  const { recipientLabel, leagueName, isCommissionerInvite } = args;
+  const message = isCommissionerInvite
+    ? `Hey ${recipientLabel} — I added our Sleeper league "${leagueName}" to PotKeeper. Sign up at potkeeper.app to set up the buy-in.`
+    : `Hey ${recipientLabel} — our Sleeper league "${leagueName}" is on PotKeeper. Sign up at potkeeper.app and you'll auto-join.`;
+  try {
+    await Share.share({ message });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : "Unknown error";
+    Alert.alert("Couldn't open share sheet", detail);
+  }
 }
 
 function formatCents(cents: number): string {

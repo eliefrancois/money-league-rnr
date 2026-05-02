@@ -7,16 +7,14 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { FontAwesome } from "@expo/vector-icons";
 
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Text } from "~/components/ui/text";
-import { ThemeToggle } from "~/components/ThemeToggle";
+import { ScreenTopBar } from "~/components/ScreenTopBar";
 import { useSession } from "~/context";
 import type { Json, Tables } from "~/lib/database.types";
-import { useColorScheme } from "~/lib/useColorScheme";
 import { supabase } from "~/utils/supabase";
 
 // ============================================================================
@@ -50,8 +48,6 @@ type Decision = "approved" | "disputed";
 export default function AuthorizeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useSession();
-  const insets = useSafeAreaInsets();
-  const { isDarkColorScheme } = useColorScheme();
 
   const [league, setLeague] = useState<League | null>(null);
   const [members, setMembers] = useState<LeagueMember[]>([]);
@@ -285,7 +281,7 @@ export default function AuthorizeScreen() {
   if (loading && !league) {
     return (
       <View className="flex-1 bg-secondary/30">
-        <TopBar insetsTop={insets.top} isDark={isDarkColorScheme} />
+        <ScreenTopBar title="Verify Final Standings" />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" />
         </View>
@@ -296,7 +292,7 @@ export default function AuthorizeScreen() {
   if (error || !league) {
     return (
       <View className="flex-1 bg-secondary/30">
-        <TopBar insetsTop={insets.top} isDark={isDarkColorScheme} />
+        <ScreenTopBar title="Verify Final Standings" />
         <View className="flex-1 items-center justify-center gap-2 p-6">
           <FontAwesome name="exclamation-triangle" size={32} color="#f59e0b" />
           <Text className="text-center">{error ?? "League not found."}</Text>
@@ -311,7 +307,7 @@ export default function AuthorizeScreen() {
   if (!snapshot) {
     return (
       <View className="flex-1 bg-secondary/30">
-        <TopBar insetsTop={insets.top} isDark={isDarkColorScheme} />
+        <ScreenTopBar title="Verify Final Standings" />
         <View className="flex-1 items-center justify-center gap-3 p-6">
           <FontAwesome name="hourglass-half" size={28} color="#94a3b8" />
           <Text className="text-center font-semibold">
@@ -328,7 +324,7 @@ export default function AuthorizeScreen() {
 
   return (
     <View className="flex-1 bg-secondary/30">
-      <TopBar insetsTop={insets.top} isDark={isDarkColorScheme} />
+      <ScreenTopBar title="Verify Final Standings" />
       <ScrollView contentContainerClassName="p-5 gap-4">
       <CountdownBanner
         closesAt={league.authorization_window_closes_at}
@@ -377,49 +373,6 @@ export default function AuthorizeScreen() {
         dispute is raised, payouts pause until resolved.
       </Text>
       </ScrollView>
-    </View>
-  );
-}
-
-// ============================================================================
-// Top bar — same pattern as the league detail screen. Custom in-screen header
-// to bypass the iOS 26 Liquid Glass capsules around native Stack header
-// buttons.
-// ============================================================================
-
-function TopBar({
-  insetsTop,
-  isDark,
-}: {
-  insetsTop: number;
-  isDark: boolean;
-}) {
-  return (
-    <View
-      className="px-5 pb-2 flex-row items-center justify-between bg-secondary/30"
-      style={{ paddingTop: insetsTop + 8 }}
-    >
-      <Pressable
-        onPress={() => router.back()}
-        hitSlop={16}
-        className="h-10 w-10 items-center justify-center"
-        accessibilityLabel="Back"
-      >
-        <FontAwesome
-          name="chevron-left"
-          size={18}
-          color={isDark ? "#FAFAFA" : "#0A0A0F"}
-        />
-      </Pressable>
-      <Text
-        className="text-base font-semibold flex-1 text-center mx-2"
-        numberOfLines={1}
-      >
-        Verify Final Standings
-      </Text>
-      <View className="h-10 w-10 items-center justify-center">
-        <ThemeToggle />
-      </View>
     </View>
   );
 }

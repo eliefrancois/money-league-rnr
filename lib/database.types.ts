@@ -16,31 +16,31 @@ export type Database = {
     Tables: {
       bar_partners: {
         Row: {
-          id: number
-          name: string
           city: string | null
-          state: string | null
-          logo_url: string | null
-          default_incentive: string | null
           created_at: string
+          default_incentive: string | null
+          id: number
+          logo_url: string | null
+          name: string
+          state: string | null
         }
         Insert: {
-          id?: never
-          name: string
           city?: string | null
-          state?: string | null
-          logo_url?: string | null
-          default_incentive?: string | null
           created_at?: string
+          default_incentive?: string | null
+          id?: never
+          logo_url?: string | null
+          name: string
+          state?: string | null
         }
         Update: {
-          id?: never
-          name?: string
           city?: string | null
-          state?: string | null
-          logo_url?: string | null
-          default_incentive?: string | null
           created_at?: string
+          default_incentive?: string | null
+          id?: never
+          logo_url?: string | null
+          name?: string
+          state?: string | null
         }
         Relationships: []
       }
@@ -109,6 +109,7 @@ export type Database = {
       }
       leagues: {
         Row: {
+          authorization_auto_finalized_at: string | null
           authorization_status: string
           authorization_window_closes_at: string | null
           authorization_window_started_at: string | null
@@ -137,6 +138,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          authorization_auto_finalized_at?: string | null
           authorization_status?: string
           authorization_window_closes_at?: string | null
           authorization_window_started_at?: string | null
@@ -165,6 +167,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          authorization_auto_finalized_at?: string | null
           authorization_status?: string
           authorization_window_closes_at?: string | null
           authorization_window_started_at?: string | null
@@ -194,6 +197,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "leagues_bar_partner_id_fkey"
+            columns: ["bar_partner_id"]
+            isOneToOne: false
+            referencedRelation: "bar_partners"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "leagues_commissioner_profile_id_fkey"
             columns: ["commissioner_profile_id"]
             isOneToOne: false
@@ -205,14 +215,6 @@ export type Database = {
             columns: ["imported_by"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          
-          {
-            foreignKeyName: "leagues_bar_partner_id_fkey"
-            columns: ["bar_partner_id"]
-            isOneToOne: false
-            referencedRelation: "bar_partners"
             referencedColumns: ["id"]
           },
           {
@@ -322,78 +324,6 @@ export type Database = {
             columns: ["snapshot_id"]
             isOneToOne: false
             referencedRelation: "standings_snapshots"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sponsorship_codes: {
-        Row: {
-          id: number
-          code: string
-          boost_max_cents: number
-          match_ratio: number
-          partner_name: string
-          partner_contact_email: string | null
-          expires_at: string
-          conditions: Json
-          redeemed_for_league_id: string | null
-          redeemed_at: string | null
-          funded_at: string | null
-          forfeited_at: string | null
-          status: string
-          notes: string | null
-          created_by: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: never
-          code: string
-          boost_max_cents: number
-          match_ratio?: number
-          partner_name?: string
-          partner_contact_email?: string | null
-          expires_at: string
-          conditions?: Json
-          redeemed_for_league_id?: string | null
-          redeemed_at?: string | null
-          funded_at?: string | null
-          forfeited_at?: string | null
-          status?: string
-          notes?: string | null
-          created_by?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: never
-          code?: string
-          boost_max_cents?: number
-          match_ratio?: number
-          partner_name?: string
-          partner_contact_email?: string | null
-          expires_at?: string
-          conditions?: Json
-          redeemed_for_league_id?: string | null
-          redeemed_at?: string | null
-          funded_at?: string | null
-          forfeited_at?: string | null
-          status?: string
-          notes?: string | null
-          created_by?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sponsorship_codes_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sponsorship_codes_redeemed_for_league_id_fkey"
-            columns: ["redeemed_for_league_id"]
-            isOneToOne: false
-            referencedRelation: "leagues"
             referencedColumns: ["id"]
           },
         ]
@@ -620,6 +550,78 @@ export type Database = {
         }
         Relationships: []
       }
+      sponsorship_codes: {
+        Row: {
+          boost_max_cents: number
+          code: string
+          conditions: Json
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          forfeited_at: string | null
+          funded_at: string | null
+          id: number
+          match_ratio: number
+          notes: string | null
+          partner_contact_email: string | null
+          partner_name: string
+          redeemed_at: string | null
+          redeemed_for_league_id: string | null
+          status: string
+        }
+        Insert: {
+          boost_max_cents: number
+          code: string
+          conditions?: Json
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          forfeited_at?: string | null
+          funded_at?: string | null
+          id?: never
+          match_ratio?: number
+          notes?: string | null
+          partner_contact_email?: string | null
+          partner_name?: string
+          redeemed_at?: string | null
+          redeemed_for_league_id?: string | null
+          status?: string
+        }
+        Update: {
+          boost_max_cents?: number
+          code?: string
+          conditions?: Json
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          forfeited_at?: string | null
+          funded_at?: string | null
+          id?: never
+          match_ratio?: number
+          notes?: string | null
+          partner_contact_email?: string | null
+          partner_name?: string
+          redeemed_at?: string | null
+          redeemed_for_league_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sponsorship_codes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sponsorship_codes_redeemed_for_league_id_fkey"
+            columns: ["redeemed_for_league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       standings_authorizations: {
         Row: {
           created_at: string
@@ -741,6 +743,18 @@ export type Database = {
       }
     }
     Functions: {
+      get_sponsorship_view: {
+        Args: { p_league_id: string }
+        Returns: {
+          boost_max_cents: number
+          expires_at: string
+          funded_at: string
+          match_ratio: number
+          min_members_paid_pct: number
+          partner_name: string
+          status: string
+        }[]
+      }
       is_league_member: { Args: { p_league_id: string }; Returns: boolean }
       link_member_to_profile: {
         Args: { p_league_member_id: string; p_profile_id: string }

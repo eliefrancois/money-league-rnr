@@ -11,6 +11,7 @@ import { FontAwesome } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 
 import { Button } from "~/components/ui/button";
+import { ScreenTopBar } from "~/components/ScreenTopBar";
 import { Text } from "~/components/ui/text";
 import { useSession } from "~/context";
 import type { Tables } from "~/lib/database.types";
@@ -193,19 +194,25 @@ export default function BuyInPayScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center bg-secondary/30">
-        <ActivityIndicator />
+      <View className="flex-1 bg-secondary/30">
+        <ScreenTopBar title="Pay your buy-in" />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator />
+        </View>
       </View>
     );
   }
   if (error || !league || !member) {
     return (
-      <View className="flex-1 items-center justify-center gap-3 p-6 bg-secondary/30">
-        <FontAwesome name="exclamation-triangle" size={32} color="#f59e0b" />
-        <Text className="text-center">{error ?? "Couldn't load league"}</Text>
-        <Button variant="secondary" onPress={() => router.back()}>
-          <Text>Back</Text>
-        </Button>
+      <View className="flex-1 bg-secondary/30">
+        <ScreenTopBar title="Pay your buy-in" />
+        <View className="flex-1 items-center justify-center gap-3 p-6">
+          <FontAwesome name="exclamation-triangle" size={32} color="#f59e0b" />
+          <Text className="text-center">{error ?? "Couldn't load league"}</Text>
+          <Button variant="secondary" onPress={() => router.back()}>
+            <Text>Back</Text>
+          </Button>
+        </View>
       </View>
     );
   }
@@ -215,6 +222,7 @@ export default function BuyInPayScreen() {
 
   return (
     <View className="flex-1 bg-secondary/30">
+      <ScreenTopBar title="Pay your buy-in" />
       <ScrollView contentContainerClassName="p-5 gap-4 pb-32">
         {/* League card — compact context so they remember what they're buying into */}
         <View className="rounded-2xl border border-border bg-card p-4 gap-3">

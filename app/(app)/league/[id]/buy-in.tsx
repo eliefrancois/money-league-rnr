@@ -11,6 +11,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { FontAwesome } from "@expo/vector-icons";
 
 import { Button } from "~/components/ui/button";
+import { ScreenTopBar } from "~/components/ScreenTopBar";
 import { Text } from "~/components/ui/text";
 import { useSession } from "~/context";
 import type { Json, Tables } from "~/lib/database.types";
@@ -300,37 +301,47 @@ export default function BuyInSetupScreen() {
 
   if (loadError) {
     return (
-      <View className="flex-1 items-center justify-center gap-2 p-6 bg-secondary/30">
-        <FontAwesome name="exclamation-triangle" size={28} color="#f59e0b" />
-        <Text className="text-center text-muted-foreground">{loadError}</Text>
+      <View className="flex-1 bg-secondary/30">
+        <ScreenTopBar title="Set up the pot" />
+        <View className="flex-1 items-center justify-center gap-2 p-6">
+          <FontAwesome name="exclamation-triangle" size={28} color="#f59e0b" />
+          <Text className="text-center text-muted-foreground">{loadError}</Text>
+        </View>
       </View>
     );
   }
 
   if (!league) {
     return (
-      <View className="flex-1 items-center justify-center bg-secondary/30">
-        <ActivityIndicator />
+      <View className="flex-1 bg-secondary/30">
+        <ScreenTopBar title="Set up the pot" />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator />
+        </View>
       </View>
     );
   }
 
   if (!isCommissioner) {
     return (
-      <View className="flex-1 items-center justify-center gap-2 p-6 bg-secondary/30">
-        <FontAwesome name="lock" size={28} color="#999" />
-        <Text className="text-center text-muted-foreground">
-          Only the league commissioner can set up the pot.
-        </Text>
-        <Button variant="outline" onPress={() => router.back()}>
-          <Text>Back to league</Text>
-        </Button>
+      <View className="flex-1 bg-secondary/30">
+        <ScreenTopBar title="Set up the pot" />
+        <View className="flex-1 items-center justify-center gap-2 p-6">
+          <FontAwesome name="lock" size={28} color="#999" />
+          <Text className="text-center text-muted-foreground">
+            Only the league commissioner can set up the pot.
+          </Text>
+          <Button variant="outline" onPress={() => router.back()}>
+            <Text>Back to league</Text>
+          </Button>
+        </View>
       </View>
     );
   }
 
   return (
     <View className="flex-1 bg-secondary/30">
+      <ScreenTopBar title="Set up the pot" />
       <ScrollView contentContainerClassName="p-5 gap-5 pb-32">
         <SummaryCard league={league} />
 
