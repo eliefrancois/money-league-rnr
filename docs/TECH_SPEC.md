@@ -561,6 +561,111 @@ The admin (partner) does not have a PotKeeper account in v1; they receive code-i
 - `must_use_auto_payout = true` ensures the league actually uses PotKeeper's payout rails (we paid for the demo; we want it on tape)
 - One redemption per code (`UNIQUE` constraint via `redeemed_for_league_id`); admin can't apply same code to multiple leagues
 
+#### 3.12 New: `platform_identities_auto_link` trigger
+
+**Migration**: `20260502000018_auto_link_member_on_identity.sql`.
+
+Closes the gap where a commissioner imports a league before all members have PotKeeper accounts. Without this trigger, `league_members` rows created at import-time stayed `linked_profile_id = NULL` forever — even after the member later signed up and verified their fantasy account, they had to re-run the Sleeper import to be recognized as a league member.
+
+```sql
+create or replace function public.auto_link_members_for_identity()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  -- Backfill linked_profile_id on every league_members row whose
+  -- (platform, external_user_id) matches the newly-verified identity
+  update public.league_members lm
+  set linked_profile_id = new.profile_id
+  from public.leagues l
+  where lm.league_id = l.id
+    and l.platform = new.platform
+    and lm.external_user_id = new.external_user_id
+    and lm.linked_profile_id is null;
+
+  -- Promote commissioner_profile_id when the new identity matches the
+  -- platform-marked owner (e.g. Sleeper league owner signs up after import)
+  update public.leagues
+  set commissioner_profile_id = new.profile_id
+  where commissioner_profile_id is null
+    and platform = new.platform
+    and exists (
+      select 1
+      from public.league_members lm
+      where lm.league_id = leagues.id
+        and lm.linked_profile_id = new.profile_id
+        and lm.is_owner = true
+    );
+
+  return new;
+end;
+$$;
+
+create trigger platform_identities_auto_link
+  after insert on public.platform_identities
+  for each row execute function public.auto_link_members_for_identity();
+```
+
+**Behavioral implications**:
+
+- Member onboarding becomes order-independent — commissioner-first or member-first both end up with the right links.
+- A member who signs up after the league is imported sees the league appear in their Home / Leagues tabs the moment they verify their Sleeper handle, no extra action required.
+- Trigger is `AFTER INSERT` only. We rely on the fact that `platform_identities` rows are created once per `(profile_id, platform, external_user_id)` triple and are not mutated; if we ever start updating that table, extend the trigger to `OR UPDATE`.
+- Idempotent by construction — repeated inserts of the same identity (which are blocked by uniqueness anyway) would be no-ops because the `linked_profile_id is null` predicate filters out already-linked rows.
+
+#### 3.13 New: `get_sponsorship_view` RPC
+
+**Migration**: `20260502000017_sponsorship_view_rpc.sql`.
+
+`sponsorship_codes` stays service-role-only (§3.11) so partner names, contact emails, and full conditions JSON never reach the client. But the client needs a few public-safe fields to render the Pot tab projected-boost UI: `match_ratio`, `expires_at`, the participation threshold, `funded_at`, and the partner display name.
+
+This `SECURITY DEFINER` RPC exposes exactly that subset, gated to the league commissioner + linked members:
+
+```sql
+create or replace function public.get_sponsorship_view(p_league_id uuid)
+returns table (
+  status text,
+  boost_max_cents bigint,
+  match_ratio numeric,
+  expires_at timestamptz,
+  min_members_paid_pct numeric,
+  funded_at timestamptz,
+  partner_name text
+)
+language sql
+security definer
+stable
+set search_path = public, pg_catalog
+as $$
+  select
+    l.sponsorship_status,
+    coalesce(l.sponsorship_boost_max_cents, 0)::bigint,
+    coalesce(sc.match_ratio, 1)::numeric,
+    sc.expires_at,
+    coalesce((sc.conditions->>'min_members_paid_pct')::numeric, 0.8),
+    sc.funded_at,
+    coalesce(sc.partner_name, 'Partner')
+  from public.leagues l
+  left join public.sponsorship_codes sc on sc.id = l.sponsorship_code_id
+  where l.id = p_league_id
+    and (
+      l.commissioner_profile_id = (select auth.uid())
+      or exists (
+        select 1
+        from public.league_members lm
+        where lm.league_id = l.id
+          and lm.linked_profile_id = (select auth.uid())
+      )
+    );
+$$;
+revoke all on function public.get_sponsorship_view(uuid) from public;
+grant execute on function public.get_sponsorship_view(uuid) to authenticated;
+```
+
+The Pot tab `SponsorshipPotBanner` component combines this RPC with the `league_pot_balance` materialized view (`member_paid_cents`, `sponsorship_credited_cents`) to render projected-boost numbers client-side without the server pre-computing them. If the projection logic ever needs to live server-side (e.g. for push notification copy), wrap it in a sibling RPC rather than denormalizing.
+
 ---
 
 ## 4. External Integrations
@@ -1387,13 +1492,20 @@ The product promise is "PotKeeper auto-disburses." Pass 2A still required a comm
 - ~~Edge Function `retry-payout` — JWT-gated. Two auth modes: commissioner can retry every pending row in the league; recipients can self-serve their own row by passing `payout_id`. Returns structured `{ retried, skipped }`.~~ ✅
 - ~~Pot tab UI: commissioner-side "Retry" pill on `PayoutStatusList` (only renders when ≥1 row is `waiting_on_connect`/`failed`); recipient-side "Release now" secondary action on `MyPayoutOnboardingCTA` so the winner self-serves immediately after onboarding without bugging the commissioner.~~ ✅
 
-**Pass 2C (Session 9 — sponsorship, reserve, bars, Connect webhook)**:
-- `account.updated` (and optionally `account.application.deauthorized`) on `stripe-webhook` — real-time `profiles` Connect fields; wallet no longer depends only on refresh-on-focus.
-- **Reserve / holdback (day 1)** — payout engine pays **95%** on authorize-close; **5%** per payout slot held **30 days** (`payouts.status='reserved'`, `scheduled_for`). Daily `release-reserves` Edge Function + cron. Ledger: `reserve_held` / `reserve_released`. **Auto-pause reserve release** while the league has an unresolved buy-in chargeback path (D4.a); resume when cleared or ops resolves.
-- **PotKeeper sponsorship codes** — `sponsorship_codes` table; `redeem-sponsorship-code` Edge Function; collapsed **“Have a sponsorship code?”** on Create/Convert when commissioner adds a league; Pot tab banner for `redeemed_pending` vs `funded` (threshold copy per code `conditions` JSON).
-- **`sponsorship-boost-tick`** — daily cron year-round; no-ops when no leagues in `redeemed_pending`. Funds league when thresholds + expiry rules in §3.11 pass; otherwise forfeits at `expires_at`.
-- **Bar partners (v1)** — `bar_partners` + `leagues.bar_partner_id` / `bar_incentive_text` (or equivalent). **Banner on League Detail when linked** — partner name + deal copy only. **No `pot_ledger` rows for bar perks** in v1; bars negotiate perks directly with the league; PotKeeper does not move platform money for those deals. Seed DB after partner conversations.
+**Pass 2C (Session 9 — sponsorship, reserve, bars, Connect webhook, shipped)**:
+- ~~`account.updated` (and optionally `account.application.deauthorized`) on `stripe-webhook` — real-time `profiles` Connect fields; wallet no longer depends only on refresh-on-focus.~~ ✅ both events handled in `supabase/functions/stripe-webhook/index.ts`; resolves the matching §13.5 tech-debt item.
+- ~~**Reserve / holdback (day 1)** — payout engine pays **95%** on authorize-close; **5%** per payout slot held **30 days** (`payouts.status='reserved'`, `scheduled_for`). Daily `release-reserves` Edge Function + cron. Ledger: `reserve_held` / `reserve_released`. **Auto-pause reserve release** while the league has an unresolved buy-in chargeback path (D4.a); resume when cleared or ops resolves.~~ ✅ migration `20260502000015_payout_reserves_and_disputes.sql` (adds `payouts.payout_slice`, `scheduled_for`, `leagues.buyin_dispute_open_count`); `release-reserves` Edge Function + `potkeeper-release-reserves` cron (every 6h). Auto-pause keys off `buyin_dispute_open_count > 0`.
+- ~~**PotKeeper sponsorship codes** — `sponsorship_codes` table; `redeem-sponsorship-code` Edge Function; collapsed **"Have a sponsorship code?"** on Create/Convert when commissioner adds a league; Pot tab banner for `redeemed_pending` vs `funded` (threshold copy per code `conditions` JSON).~~ ✅ migration `20260502000016_sponsorship_codes_and_bar_partners.sql`. Affordance now also surfaces on (a) the `PotUnconfiguredCard` (commissioner pre-buy-in setup), (b) the Pot tab when `sponsorship_status = 'none'` on a configured league, and (c) the Sleeper-import success step (commissioner-only). All three route to the buy-in `SponsorshipSetupSection` so redemption stays single-source. Pot tab banner extended into a **live projected-boost UI** for `redeemed_pending` (boost = `min(member_pot_paid * match_ratio, boost_max_cents)` with a paid-progress bar against `conditions.min_members_paid_pct` and an expires-in countdown). Backed by `get_sponsorship_view` RPC (§3.13) so clients read the public-safe sponsorship fields without exposure to the rest of `sponsorship_codes`.
+- ~~**`sponsorship-boost-tick`** — daily cron year-round; no-ops when no leagues in `redeemed_pending`. Funds league when thresholds + expiry rules in §3.11 pass; otherwise forfeits at `expires_at`.~~ ✅ Edge Function + `potkeeper-sponsorship-tick` cron. **Paid-pct denominator reconciled with the buy-in UI** (`linked_profile_id IS NOT NULL OR is_owner = true`) so the threshold is reachable for real Sleeper-imported leagues.
+- ~~**Bar partners (v1)** — `bar_partners` + `leagues.bar_partner_id` / `bar_incentive_text` (or equivalent). **Banner on League Detail when linked** — partner name + deal copy only. **No `pot_ledger` rows for bar perks** in v1; bars negotiate perks directly with the league; PotKeeper does not move platform money for those deals. Seed DB after partner conversations.~~ ✅ table + RLS (read-anyone), banner on League Detail. Seeding deferred to admin-dashboard slice (§13.4).
 - **Charity** — **deferred / out of v1 product surface** (optional giveback in APP_FLOW prototype not shipping). Existing schema enums (`payout_charity`, etc.) may remain unused until a future slice.
+
+**Pass 2C add-ons not in the original spec scope (shipped this session)**:
+- ~~**`get_sponsorship_view` RPC** (§3.13) — `SECURITY DEFINER` function exposing public-safe sponsorship fields (match_ratio, expires_at, conditions.min_members_paid_pct, funded_at, partner_name) to commissioner + linked members. Lets the projected-boost UI render without granting any client read access to `sponsorship_codes`.~~ ✅ migration `20260502000017_sponsorship_view_rpc.sql`.
+- ~~**`platform_identities_auto_link` trigger** (§3.12) — `AFTER INSERT` on `platform_identities` auto-links any `league_members` row whose `(platform, external_user_id)` matches the new identity, and promotes `commissioner_profile_id` when the new identity matches a Sleeper-marked owner. Closes the "commissioner imports league → member signs up later → silently never joins" gap.~~ ✅ migration `20260502000018_auto_link_member_on_identity.sql`.
+- ~~**Sleeper-link state-aware leagues list** — already-imported leagues render subdued with "Already added" pill + "View league" CTA, and a "Notify {commish}" Share button when the caller isn't the commissioner. Cross-checks Sleeper league IDs against PotKeeper's `leagues` table on lookup. See `APP_FLOW.md` Screen 3.1.c.~~ ✅
+- ~~**League invite affordances** — League header replaces the plain Members count with a colored fraction (joined/total) + dot tone (green/amber/red) + "on PotKeeper" sub-label; commissioner card gains an "Invite" Share button when the commissioner isn't on PotKeeper; Members tab shows joined/total in its header and renders a per-row "Invite" Share pill for each unlinked non-commish member. All routes go through a shared `shareLeagueInvite` helper that drops a deep link via the native Share sheet. See `APP_FLOW.md` Screen 6.1 / Tab 6.1.3.~~ ✅
+- ~~**Shared `components/ScreenTopBar.tsx`** — back-chevron + title + theme-toggle pattern extracted to bypass iOS 26 Liquid Glass capsule headers. Wired through league index, authorize, buy-in, buy-in-pay; receipt left as-is since it intentionally suppresses back navigation.~~ ✅
 
 #### Pass 2C — Funding model (sponsorship vs bar deals)
 
@@ -1535,7 +1647,7 @@ The mobile app ships first; an authenticated web dashboard for PotKeeper ops is 
 - ~~**Checkpoint 1 blocks via `geo_status='suspended'`, not auth deletion**~~ — **RESOLVED Session 3 (same day).** Initially we marked failed-eligibility profiles as `geo_status='suspended'` rather than deleting them. The fallout: a blocked email was "burned" (Supabase signUp returns a user-shaped object with empty `identities` for already-registered emails, so retries silently no-op on the client). Fix: `supabase/functions/eligibility-fail-cleanup/index.ts` validates the user's JWT then calls `auth.admin.deleteUser` (cascades to profiles). The eligibility screen invokes it before navigating to /underage or /restricted, passing the email through nav params for the waitlist capture. SessionProvider's `signUp` now also detects the empty-identities response and returns a real "account already exists" error so legitimate duplicate-email signups surface a UI alert instead of dropping silently.
 - ~~**Stripe Connect return page can't auto-close the in-app browser**~~ — **RESOLVED Session 4.** `stripe-create-connect-account` now points `return_url`/`refresh_url` at `https://potkeeper.app/stripe-return` (Vercel-hosted, source in `~/Desktop/Projects/potkeeper-site/`). That page does an immediate `window.location.replace('potkeeper://stripe-return')` (with `<meta http-equiv="refresh">` and a button as fallbacks). The wallet uses `expo-web-browser.openAuthSessionAsync(stripeUrl, 'potkeeper://stripe-return')` which iOS auto-dismisses the moment the redirect to the custom scheme fires. We also moved off the Supabase-hosted `stripe-return` Edge Function — the iOS in-app browser was rendering its HTML as raw source; the Vercel-hosted page renders normally on the same iOS browser, so the previous quirk was domain/CDN-specific and not worth chasing further.
 - ~~**App scheme is still `myapp`**~~ — **RESOLVED Session 4.** `app.json` `"scheme"` is now `"potkeeper"`, matching the brand and the `potkeeper://stripe-return` redirect target. Required a `expo prebuild --clean && expo run:ios` rebuild, batched with this session's other native config changes.
-- **Stripe Connect webhook not wired**. `stripe-account-status` is the manual catch-up that the wallet screen calls on focus and after the user returns from onboarding. For real-time sync (e.g. detecting requirements added by Stripe risk team without the user opening the app), add `stripe-webhook` handling `account.updated` and `account.application.deauthorized`. Also add the `STRIPE_WEBHOOK_SECRET` Supabase secret. Deferred from the Flow 7 thin slice.
+- ~~**Stripe Connect webhook not wired**~~ — **RESOLVED Pass 2C.** `stripe-webhook` now handles `account.updated` (refresh `profiles.stripe_connect_status` / `payouts_enabled` / `details_submitted` / `requirements_disabled_reason` in real time) and `account.application.deauthorized` (flips status back to `none` and clears the account id). Wallet still does refresh-on-focus as a belt-and-suspenders catch-up. `STRIPE_WEBHOOK_SECRET` was already configured during Flow 5; no new secret needed.
 - **`__DEV__` debug shortcut to wallet on home screen**. `app/(app)/index.tsx` renders a `DevDebugTools` block (only when `__DEV__ === true`) that links to `/(app)/wallet`. We need this because the production trigger for Flow 7 (end-of-season "claim your winnings" card on home / league detail, per `APP_FLOW.md` Flow 7) doesn't exist yet — without the dev shortcut, there's no way to reach the wallet during development, since settings now hides the row when `stripe_account_id IS NULL`. Remove this `DevDebugTools` block (and its empty-state wrapper) the moment Flow 8 wires up the real payout-trigger card.
 - **Commissioner gating on buy-in flow not enforced yet**. `app/(app)/league/[id]/buy-in.tsx` lets commissioners configure the pot regardless of Stripe Connect status. The actual gate (must be `payouts_enabled=true` before configuring or before buy-ins open) is deferred to the buy-in payment slice — at that point the gate matters because money flow is real.
 - **`restricted_state_waitlist` INSERT policy is `with check (true)`**. Supabase advisor flags this as "always-true RLS." It's intentional — the table needs to accept writes from both anon (Phase 2 public landing page) and authenticated (signup gate) and we have no good per-row predicate yet. The unique `(email, state)` constraint and the absence of any SELECT/UPDATE/DELETE policy make it write-only from the client, so leakage is bounded. Tighten with a length/format predicate next time we touch this migration.
@@ -1547,8 +1659,8 @@ The mobile app ships first; an authenticated web dashboard for PotKeeper ops is 
 - **Float yield capture**: do we capture interest on cash held in Stripe balance? Stripe doesn't pay interest by default; would require sweeping to Treasury (different product). Defer until material AUM.
 - **Rate limit on join requests**: how do we prevent a spam attack where one bad actor floods 100 leagues with join requests? Probably: 5 active requests per user, reset on transition.
 - **Cron schedule migrations not committed locally**. The `pg_cron` jobs (`potkeeper-auto-finalize`, `potkeeper-release-reserves`, `potkeeper-sponsorship-tick`) were created via SQL editor / MCP rather than versioned migrations. Remote has a `schedule_auto_finalize_cron` migration with no local file (`supabase migration list` shows the gap). The release-reserves and sponsorship-tick `cron.schedule` calls run on the user's Session 4 conversation also have no local file. Capture all three as `supabase/migrations/<ts>_schedule_crons.sql` so a fresh `supabase db reset` reconstructs the full schedule. Low risk today (the live project has them set up correctly), but blocks reproducible local dev.
-- **Migration version drift between local files and remote `schema_migrations`**. Local files use `20260501000001`-style synthetic timestamps; remote has MCP-applied versions stamped at apply-time (`20260501144754` etc.). Pass 2C migrations were repaired (file = `20260502000015/16`, MCP duplicates marked `reverted`); the older 13 still drift. Re-run the same `supabase migration repair --status applied <local> && --status reverted <remote_dup>` pattern next time you touch this area to clean up.
+- **Migration version drift between local files and remote `schema_migrations`**. Local files use `20260501000001`-style synthetic timestamps; remote has MCP-applied versions stamped at apply-time (`20260501144754` etc.). Pass 2C migrations were repaired (`20260502000015`/`16`/`17`/`18` all marked applied locally, MCP duplicates reverted). The older 13 still drift. Re-run the same `supabase migration repair --status applied <local> && --status reverted <remote_dup>` pattern next time you touch this area to clean up.
 
 ---
 
-*Last updated: May 2026. Updated as build decisions land.*
+*Last updated: May 1, 2026 (Session 9 — Pass 2C completion + auto-link trigger + sponsorship view RPC + league invite affordances). Updated as build decisions land.*

@@ -367,6 +367,18 @@ The actual WebView is system-styled.
 - Each card shows your role and the appropriate CTA
 - Empty state: "We didn't find any Sleeper leagues. Make sure your username is right." + "Reconnect Sleeper" link
 
+**Already-on-PotKeeper state machine** (`app/(app)/sleeper-link.tsx` cross-checks each Sleeper league ID against the `leagues` table on lookup):
+
+- **Not yet on PotKeeper, you are commish on Sleeper** → primary CTA "Add to PotKeeper" (the canonical convert flow, Screen 3.2).
+- **Not yet on PotKeeper, you are *not* commish on Sleeper** → no add CTA; row reads "Suggest to {commish name}" with a Share button.
+- **Already on PotKeeper, you are the PotKeeper commish** → card renders subdued with an "Already added" pill + a single "View league" CTA that deep-links to League Detail.
+- **Already on PotKeeper, you are *not* the PotKeeper commish but you are linked** → "Already added" pill + "View league" CTA.
+- **Already on PotKeeper, the PotKeeper commish hasn't finished setup yet** → "Already added" pill + "View league" + "Notify {commish name}" Share button (native Share sheet, prefilled with a league deep link and a "set up the pot" nudge). Same Share helper as the league header invite buttons (see Screen 6.1).
+
+This prevents duplicate-import attempts and gives non-commissioner members a one-tap path to nudge their commish without bouncing through copy/paste.
+
+After import, the success step inside the Sleeper-link wizard surfaces a collapsed **"Have a sponsorship code?"** disclosure (commissioner-only) that routes the user into the buy-in `SponsorshipSetupSection` rather than running its own redemption form. See `TECH_SPEC.md` §3.11.
+
 ### Screen 3.1.d — From ESPN Sub-tab
 
 - Same pattern as Sleeper
@@ -660,7 +672,8 @@ Stripe-hosted, in-app browser. Pre-filled with email and saved payment method. A
 **Top section (always visible above tabs):**
 - League name + edit/settings gear (commissioner only)
 - Bar sponsor banner if applicable: "Sponsored by [Bar Name]" with logo and incentive offer (e.g., "Free first round at draft party" or "$20 bar credit included")
-- Stats row: Pot ($), Week (X of Y), Your rank (#X)
+- Stats row: Pot ($), Week (X of Y), Your rank (#X), **Members as a fraction (joined/total) with a colored dot** (green = all members linked, amber = ≥50% linked, red = <50% linked) and an "on PotKeeper" sub-label. The fraction is computed from `league_members` where `linked_profile_id IS NOT NULL OR is_owner = true` over total `league_members`.
+- **Commissioner card** below the stats row showing the current commissioner's avatar + name. If the commissioner doesn't have a `linked_profile_id` yet (they haven't joined PotKeeper), an amber "Invite" pill appears next to their name that opens the native Share sheet via the shared `shareLeagueInvite` helper (deep link + nudge copy: "Set up the pot on PotKeeper so we can play for real money this season"). Visible to **everyone in the league**, not just members.
 - Quick actions row: "Share invite", "Chat", "Standings"
 
 **Tabs:**
@@ -693,18 +706,26 @@ THIS IS THE ICONIC SCREEN. Make it beautiful.
     - Banner background: muted green with subtle PotKeeper logo watermark
     - Headline: "Sponsored by PotKeeper"
     - Body: *"+$500 boost unlocks at 80% paid by Sept 8 — currently at 60% (7 of 12 paid)"*
-    - Inline progress bar showing current % toward the 80% threshold
-    - Tap → bottom sheet explaining how the boost works and link to ToS section
+    - **Live projected-boost number**: `min(member_pot_paid * match_ratio, boost_max_cents)`. So a $300 member pot in a 1:1 / $500-cap league reads "+$300 projected boost"; once paid passes $500 it pegs at "+$500". Source data: `get_sponsorship_view` RPC + `league_pot_balance.member_paid_cents` (see `TECH_SPEC.md` §3.13).
+    - Inline progress bar showing current % toward the `conditions.min_members_paid_pct` threshold (default 80%, but per-code overridable via the RPC). Denominator mirrors the buy-in UI and `sponsorship-boost-tick` cron — `linked_profile_id IS NOT NULL OR is_owner = true`.
+    - Expires-in countdown ("Expires in 4d 3h" → "Expires in 47m") next to the partner name.
+    - Tap → bottom sheet explaining how the boost works and link to ToS section.
   - **Funded state** (`sponsorship_status = 'funded'`):
     - Banner background: solid brand green with PotKeeper logo
     - Headline: "Pot includes $500 PotKeeper sponsorship boost"
-    - Body: *"Funded [date]. Boost is part of the pot and pays out with standings."*
+    - Body: *"Funded [date]. Boost is part of the pot and pays out with standings."* Actual credited amount comes from `league_pot_balance.sponsorship_credited_cents` (not `boost_max_cents`) — important when match-ratio caps kicked in below the maximum.
     - Tap → bottom sheet "How this works"
   - **Forfeited state** (`sponsorship_status = 'forfeited'`):
     - Banner: muted gray, no logo emphasis
     - Headline: "Sponsorship boost forfeited"
     - Body: *"League didn't reach 80% paid by Sept 8. The pot is just member buy-ins."*
     - No tap action
+- **"Have a sponsorship code?" hint** (only when `sponsorship_status = 'none'` AND the league is configured for buy-ins):
+  - Dashed sky-tinted card below the pot hero.
+  - Headline: "Have a sponsorship code?"
+  - Body: *"PotKeeper partners can boost your pot. Apply a code and we'll match buy-ins up to the partner's cap."*
+  - Tap → routes to the buy-in `SponsorshipSetupSection` (the canonical redemption surface). Visible to commissioner only; members see no card.
+  - Same affordance also appears inside `PotUnconfiguredCard` (commissioner pre-buy-in setup) and on the Sleeper-import success step. All three surfaces share the same destination so redemption stays single-source.
 - Visual: stacked bar showing what each rank's projected payout is
   - If pre-funding sponsorship: stacked bar shows current pot (solid) + projected boost (dashed/translucent overlay)
 - Card: "Where the money goes when season ends"
@@ -722,8 +743,11 @@ THIS IS THE ICONIC SCREEN. Make it beautiful.
 ### Tab 6.1.3 — Members
 
 Simple list:
-- Avatar, name, team name, rank, paid status, "DM" button (if we add chat later)
-- Commissioner has a small badge
+- Section header reads "Roster · {joined}/{total} on PotKeeper" so the linked vs unlinked count is one tap deeper than the header stat.
+- Per row: avatar, name, team name, rank, paid status, "DM" button (if we add chat later).
+- Commissioner has a small badge.
+- **Per-row Invite affordance**: any member row where `linked_profile_id IS NULL` and `is_owner = false` (i.e. on Sleeper but not on PotKeeper, and not the commissioner — the commish has their own invite button in the header card) renders a compact sky-blue "Invite" pill that opens the native Share sheet via `shareLeagueInvite`. Copy is auto-join framed: "Join our league on PotKeeper. When you sign up and link your Sleeper account, you'll be added automatically." This works because of the `platform_identities_auto_link` trigger in `TECH_SPEC.md` §3.12 — the member just signs up and verifies their Sleeper handle; the trigger does the rest.
+- Visible to **everyone in the league** (not gated to commissioners). No bulk "Invite all missing members" button — keep per-row to avoid spam patterns and keep social graph attribution clean.
 
 ### Tab 6.1.4 — Activity Feed
 
@@ -1076,4 +1100,4 @@ When generating mocks:
 
 ---
 
-*Last updated: April 2026. Pair with `VISION.md` for the why.*
+*Last updated: May 1, 2026 (Session 9 — Sleeper-link state machine, league header invite affordances, Pot tab projected-boost UI). Pair with `VISION.md` for the why.*
