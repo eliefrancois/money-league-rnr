@@ -21,10 +21,16 @@ import { useColorScheme } from "~/lib/useColorScheme";
 export function ScreenTopBar({
   title,
   showBack = true,
+  onBack,
   rightAction,
 }: {
   title: string;
   showBack?: boolean;
+  // Optional override for the back press. Defaults to router.back(). Use
+  // this for screens with internal multi-step state where back should pop
+  // to the previous step rather than the previous screen (e.g. sleeper-link
+  // leagues step → username step).
+  onBack?: () => void;
   // Optional override for the right slot. Defaults to <ThemeToggle />, which
   // is what every consumer wants today, but leaving a hook here for screens
   // that need a context action (e.g. refresh, edit).
@@ -39,7 +45,7 @@ export function ScreenTopBar({
     >
       {showBack ? (
         <Pressable
-          onPress={() => router.back()}
+          onPress={onBack ?? (() => router.back())}
           hitSlop={16}
           className="h-10 w-10 items-center justify-center"
           accessibilityLabel="Back"

@@ -14,6 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
+import { ScreenTopBar } from "~/components/ScreenTopBar";
 import { Text } from "~/components/ui/text";
 import {
   getSleeperAvatarUrl,
@@ -242,9 +243,12 @@ export default function SleeperLinkScreen() {
 
   if (step === "importing") {
     return (
-      <View className="flex-1 items-center justify-center gap-4 bg-secondary/30">
-        <ActivityIndicator size="large" />
-        <Text>Importing league + members…</Text>
+      <View className="flex-1 bg-secondary/30">
+        <ScreenTopBar title="Importing…" showBack={false} />
+        <View className="flex-1 items-center justify-center gap-4">
+          <ActivityIndicator size="large" />
+          <Text>Importing league + members…</Text>
+        </View>
       </View>
     );
   }
@@ -280,34 +284,37 @@ function UsernameStep({
 }) {
   const [username, setUsername] = useState("");
   return (
-    <ScrollView contentContainerClassName="flex-grow p-6 gap-6 bg-secondary/30">
-      <Card>
-        <CardHeader>
-          <CardTitle>Enter your Sleeper username</CardTitle>
-          <CardDescription>
-            We'll find all the leagues you're in. No password required.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="gap-3">
-          <Input
-            placeholder="ef2467"
-            autoCapitalize="none"
-            autoCorrect={false}
-            value={username}
-            onChangeText={setUsername}
-            onSubmitEditing={() => onSubmit(username)}
-            returnKeyType="search"
-          />
-          <Button onPress={() => onSubmit(username)} disabled={loading || !username.trim()}>
-            {loading ? <ActivityIndicator /> : <Text>Find My Leagues</Text>}
-          </Button>
-        </CardContent>
-      </Card>
+    <View className="flex-1 bg-secondary/30">
+      <ScreenTopBar title="Sync Sleeper" />
+      <ScrollView contentContainerClassName="flex-grow p-6 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Enter your Sleeper username</CardTitle>
+            <CardDescription>
+              We'll find all the leagues you're in. No password required.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="gap-3">
+            <Input
+              placeholder="ef2467"
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={username}
+              onChangeText={setUsername}
+              onSubmitEditing={() => onSubmit(username)}
+              returnKeyType="search"
+            />
+            <Button onPress={() => onSubmit(username)} disabled={loading || !username.trim()}>
+              {loading ? <ActivityIndicator /> : <Text>Find My Leagues</Text>}
+            </Button>
+          </CardContent>
+        </Card>
 
-      <Text className="text-xs text-muted-foreground text-center">
-        Your Sleeper username is what shows in-app under Settings → Account.
-      </Text>
-    </ScrollView>
+        <Text className="text-xs text-muted-foreground text-center">
+          Your Sleeper username is what shows in-app under Settings → Account.
+        </Text>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -338,59 +345,62 @@ function LeaguesStep({
   const initial = (sleeperUser.display_name ?? sleeperUser.username ?? "?")[0]?.toUpperCase();
 
   return (
-    <ScrollView contentContainerClassName="p-6 gap-4 bg-secondary/30">
-      <View className="flex-row items-center gap-3">
-        <Avatar alt={sleeperUser.display_name ?? "Sleeper avatar"}>
-          {avatarUrl ? <AvatarImage source={{ uri: avatarUrl }} /> : null}
-          <AvatarFallback>
-            <Text>{initial}</Text>
-          </AvatarFallback>
-        </Avatar>
-        <View className="flex-1">
-          <Text className="font-semibold">{sleeperUser.display_name ?? sleeperUser.username}</Text>
-          <Text className="text-xs text-muted-foreground">@{sleeperUser.username ?? "unknown"}</Text>
-        </View>
-        <Button variant="ghost" size="sm" onPress={onBack}>
-          <Text>Change</Text>
-        </Button>
-      </View>
-
-      <View className="flex-row gap-2">
-        {SEASON_OPTIONS.map((s) => (
-          <Button
-            key={s}
-            size="sm"
-            variant={s === season ? "default" : "outline"}
-            onPress={() => onSeasonChange(s)}
-            disabled={loading}
-          >
-            <Text>{s}</Text>
+    <View className="flex-1 bg-secondary/30">
+      <ScreenTopBar title="Choose a league" onBack={onBack} />
+      <ScrollView contentContainerClassName="p-6 gap-4">
+        <View className="flex-row items-center gap-3">
+          <Avatar alt={sleeperUser.display_name ?? "Sleeper avatar"}>
+            {avatarUrl ? <AvatarImage source={{ uri: avatarUrl }} /> : null}
+            <AvatarFallback>
+              <Text>{initial}</Text>
+            </AvatarFallback>
+          </Avatar>
+          <View className="flex-1">
+            <Text className="font-semibold">{sleeperUser.display_name ?? sleeperUser.username}</Text>
+            <Text className="text-xs text-muted-foreground">@{sleeperUser.username ?? "unknown"}</Text>
+          </View>
+          <Button variant="ghost" size="sm" onPress={onBack}>
+            <Text>Change</Text>
           </Button>
-        ))}
-      </View>
-
-      {loading ? (
-        <View className="items-center py-8">
-          <ActivityIndicator />
         </View>
-      ) : leagues.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 items-center gap-2">
-            <Text className="text-muted-foreground">No leagues for {season}</Text>
-            <Text className="text-xs text-muted-foreground">Try another season above.</Text>
-          </CardContent>
-        </Card>
-      ) : (
-        leagues.map((league) => (
-          <LeagueCard
-            key={league.league_id}
-            league={league}
-            existing={existingMap.get(league.league_id) ?? null}
-            onImport={onImport}
-          />
-        ))
-      )}
-    </ScrollView>
+
+        <View className="flex-row gap-2">
+          {SEASON_OPTIONS.map((s) => (
+            <Button
+              key={s}
+              size="sm"
+              variant={s === season ? "default" : "outline"}
+              onPress={() => onSeasonChange(s)}
+              disabled={loading}
+            >
+              <Text>{s}</Text>
+            </Button>
+          ))}
+        </View>
+
+        {loading ? (
+          <View className="items-center py-8">
+            <ActivityIndicator />
+          </View>
+        ) : leagues.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 items-center gap-2">
+              <Text className="text-muted-foreground">No leagues for {season}</Text>
+              <Text className="text-xs text-muted-foreground">Try another season above.</Text>
+            </CardContent>
+          </Card>
+        ) : (
+          leagues.map((league) => (
+            <LeagueCard
+              key={league.league_id}
+              league={league}
+              existing={existingMap.get(league.league_id) ?? null}
+              onImport={onImport}
+            />
+          ))
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
